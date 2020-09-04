@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+#echo $HOSTNAME
+hs=`hostname`
+#echo $hs
+echo "Your hostname is:" $hs
+
+echo -n "Enter username:"
+read NAME
+echo "Your username is:" $NAME
+rm /etc/nginx/.htpasswd
+sh -c "echo -n "${NAME}:" >> /etc/nginx/.htpasswd"
+sh -c "openssl passwd -apr1 >> /etc/nginx/.htpasswd"
+
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/client --output /etc/nginx/sites-enabled/domoticz.conf 
+sed -i -e "s/xxxxxx/$(hostname)/g" /etc/nginx/sites-enabled/domoticz.conf
+
+#/home/root/domoticz/./updatebeta
+rm /home/root/domoticz/www/html5.appcache
+sed -ie 's/<html manifest="html5.appcache">/ /g' /home/root/domoticz/www/index.html
+
+service nginx reload
