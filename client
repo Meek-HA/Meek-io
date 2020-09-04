@@ -1,7 +1,9 @@
+# xxxxxx = subdomain
+
 #Authorization procedure
 server {
   listen       81;
-  server_name control.meek-io.com;
+  server_name xxxxxx.meek-io.com;
   auth_basic "Administrator Login";
   auth_basic_user_file /etc/nginx/.htpasswd;
 
@@ -10,7 +12,7 @@ server {
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
     proxy_pass_header Authorization;
-    proxy_pass http://MQTTNginx:8080;
+    proxy_pass http://xxxxxx:8080;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -25,7 +27,7 @@ server {
   #Dashticz subpath forwarding
   location /dashticz {
     proxy_pass_header Authorization;
-    proxy_pass http://MQTTNginx/dashticz;
+    proxy_pass http://xxxxxx/dashticz;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
