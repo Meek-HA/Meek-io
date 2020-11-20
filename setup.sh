@@ -87,7 +87,7 @@ git clone https://github.com/stas-demydiuk/domoticz-zigbee2mqtt-plugin.git zigbe
 
 echo Install Nginx
 apt install nginx -y
-sed -i 's/80 default_server;/82 default_server;/g' /etc/nginx/sites-enabled/default
+sed -i 's/80 default_server;/83 default_server;/g' /etc/nginx/sites-enabled/default
 systemctl start nginx
 
 echo Configuration and Settings
@@ -138,18 +138,46 @@ proxy_read_timeout 36000s;
 proxy_redirect off;
 }
 }
-EOF
 
+#Authorization procedure Admin Account
+server {
+listen       82;
+auth_basic "Administrator Login";
+auth_basic_user_file /etc/nginx/.admin;
+
+#Admin subpath forwarding
+location /admin {
+proxy_pass_header Authorization;
+proxy_pass http://127.0.0.1/admin;
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_http_version 1.1;
+proxy_set_header Connection "";
+proxy_buffering off;
+client_max_body_size 0;
+proxy_read_timeout 36000s;
+proxy_redirect off;
+}
+}
+EOF
 
 hs=`hostname`
 echo "Your hostname is:" $hs
 
-echo -n "Enter username:"
+echo -n "Enter username and password for user account:"
 read NAME
 echo "Your username is:" $NAME
 rm /etc/nginx/.htpasswd
 sh -c "echo -n "${NAME}:" >> /etc/nginx/.htpasswd"
 sh -c "openssl passwd -apr1 >> /etc/nginx/.htpasswd"
+
+echo -n "Enter username and password for admin account:"
+read NAME
+echo "Your username is:" $NAME
+rm /etc/nginx/.admin
+sh -c "echo -n "${NAME}:" >> /etc/nginx/.admin"
+sh -c "openssl passwd -apr1 >> /etc/nginx/.admin"
 
 sed -i -e "s/xxxxxx/$(hostname)/g" /etc/nginx/sites-enabled/domoticz.conf
 
