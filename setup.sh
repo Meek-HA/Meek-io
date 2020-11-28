@@ -17,6 +17,16 @@ curl -sSL install.domoticz.com | sudo bash
 
 echo Install Mosquitto
 apt-get install mosquitto -y
+rm /etc/mosquitto/conf.d/default.conf
+touch /etc/mosquitto/conf.d/default.conf
+cat << EOF > /etc/mosquitto/conf.d/default.conf
+per_listener_settings true
+port 1883
+
+listener 1884
+allow_anonymous false
+password_file /etc/mosquitto/passwd
+EOF
 
 echo Install HomeBridge
 curl -sL https://deb.nodesource.com/setup_12.x | sudo bash -
