@@ -93,4 +93,5 @@ if [ -f "$FILE" ];
                 mosquitto_passwd -U /var/www/html/admin/command/cmqtp
                 rm /etc/mosquitto/passwd
                 mv /var/www/html/admin/command/cmqtp /etc/mosquitto/passwd
+                service mosquitto restart
 fi
