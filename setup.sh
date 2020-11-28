@@ -39,6 +39,7 @@ cd /var/www/html
 git clone https://github.com/Dashticz/dashticz --branch beta
 cd dashticz/custom/
 cp CONFIG_DEFAULT.js CONFIG.js
+sed -i "/domoticz_ip/c\[config['domoticz_ip'] = 'https://$(hostname).meek-io.com';" CONFIG.js
 cd
 
 echo Install Node-Red
