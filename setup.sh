@@ -48,11 +48,6 @@ pm2 start /usr/bin/node-red -- -v
 pm2 save
 pm2 startup systemd
 
-echo Install Tiny File Manager
-curl https://raw.githubusercontent.com/prasathmani/tinyfilemanager/master/tinyfilemanager.php --output /var/www/html/dashticz/edit.php
-chown -R www-data /var/www/html/dashticz
-sed -i 's/: 'http')/: 'https')/g' /var/www/html/dashticz/edit.php
-
 echo Install/Setup Zigbee2MQTT
 curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
 apt-get install -y nodejs git make g++ gcc
