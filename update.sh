@@ -90,12 +90,7 @@ fi
 FILE=/var/www/html/admin/command/cmqtp
 if [ -f "$FILE" ];
          then
-                rm /etc/nginx/.admin
-                changeusername="$(head -1 /var/www/html/admin/command/cmqtp)"
-                echo "$changeusername"
-                changepassword="$(tail -1 /var/www/html/admin/command/cmqtp)"
-                echo "$changepassword"
-                sh -c "echo -n "$changeusername:" >> /etc/nginx/.admin"
-                sh -c "openssl passwd -apr1 $changepassword >> /etc/nginx/.admin"
-                rm /var/www/html/admin/command/cmqtp
+                mosquitto_passwd -U /var/www/html/admin/command/cmqtp
+                rm /etc/mosquitto/passwd
+                mv /var/www/html/admin/command/cmqtp /etc/mosquitto/passwd
 fi
