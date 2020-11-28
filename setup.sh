@@ -31,7 +31,7 @@ echo Install HomeBridge Alexa plugin
 npm install -g homebridge-alexa
 
 echo Install Apache Webserver
-apt-get install apache2 php php-xml php-curl libapache2-mod-php
+apt-get install apache2 php php-xml php-curl libapache2-mod-php -y
 systemctl restart apache2
 
 echo Install Dashticz
