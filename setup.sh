@@ -23,6 +23,12 @@ curl -sL https://deb.nodesource.com/setup_12.x | sudo bash -
 sudo apt-get install -y nodejs gcc g++ make python
 npm install -g --unsafe-perm homebridge homebridge-config-ui-x
 hb-service install --user homebridge
+echo Install HomeBridge edomoticz plugin
+npm install -g homebridge-edomoticz
+echo Install HomeBridge to Google Smart Home plugin
+npm install -g homebridge-gsh
+echo Install HomeBridge Alexa plugin
+npm install -g homebridge-alexa
 
 echo Install Apache Webserver
 apt-get install apache2 php php-xml php-curl libapache2-mod-php
