@@ -216,5 +216,15 @@ echo -n "Admin page"
 git clone https://github.com/Meek-HA/Meek.io-admin.git /var/www/html/admin
 chown -R www-data:www-data /var/www/html/admin
 
+echo -n "Create cronjob"
+cd /root/MEEK
+touch cron
+cat << EOF > cron
+* * * * * /bin/sh /root/MEEK/update.sh
+EOF
+crontab cron
+
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/update.sh --output update.sh && chmod +rwx update.sh
+
 echo -n "Reboot !:"
 reboot
