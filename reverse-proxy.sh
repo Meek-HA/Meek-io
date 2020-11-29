@@ -89,6 +89,8 @@ proxy_set_header            Connection "Upgrade";
 proxy_set_header            X-Real-IP $remote_addr;
 proxy_set_header            X-Forward-For $proxy_add_x_forwarded_for;
 }
+ssl_certificate /etc/letsencrypt/live/xxxxxx.meek-io.com/fullchain.pem; # managed by Certbot
+ssl_certificate_key /etc/letsencrypt/live/xxxxxx.meek-io.com/privkey.pem; # managed by Certbot
 }
 
 #proxy for node-red @ port :1880
@@ -111,12 +113,18 @@ proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 proxy_set_header X-Forwarded-Proto $scheme;
 proxy_set_header X-Forwarded-Host $host;
 proxy_set_header X-Forwarded-Port $server_port;
-
 }
+ssl_certificate /etc/letsencrypt/live/xxxxxx.meek-io.com/fullchain.pem; # managed by Certbot
+ssl_certificate_key /etc/letsencrypt/live/xxxxxx.meek-io.com/privkey.pem; # managed by Certbot
 }
 
 EOF
 
 sed -i -e "s/xxxxxx/$NAME/g" /etc/nginx/sites-enabled/$NAME.conf
+
+#Certbot
+#apt install certbot python3-certbot-nginx
+#certbot --nginx -d meek-io.com
+certbot --nginx -d $NAME.meek-io.com
 
 service nginx reload
