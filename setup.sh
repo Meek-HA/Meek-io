@@ -227,6 +227,7 @@ git clone https://github.com/Meek-HA/Meek.io-admin.git /var/www/html/admin
 chown -R www-data:www-data /var/www/html/admin
 
 echo -n "Create cronjob"
+mkdir /root/MEEK
 cd /root/MEEK
 touch cron
 cat << EOF > cron
@@ -234,7 +235,7 @@ cat << EOF > cron
 EOF
 crontab cron
 
-curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/update.sh --output update.sh && chmod +rwx update.sh
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/update.sh --output /root/MEEK/update.sh && chmod +rwx /root/MEEK/update.sh
 
 echo -n "Reboot !:"
 reboot
