@@ -15,6 +15,7 @@ mkdir /home/root
 mkdir /home/root/domoticz
 curl -sSL install.domoticz.com | sudo bash
 
+######--MOSQUITTO--################################################
 echo Install Mosquitto
 apt-get install mosquitto -y
 rm /etc/mosquitto/conf.d/default.conf
@@ -26,10 +27,28 @@ port 1883 localhost
 listener 1884
 allow_anonymous false
 password_file /etc/mosquitto/passwd
-certfile /etc/letsencrypt/live/xxxxxx/cert.pem
-cafile /etc/letsencrypt/live/xxxxxx/chain.pem
-keyfile /etc/letsencrypt/live/xxxxxx/privkey.pem
+certfile /etc/letsencrypt/live/$(hostname).meek-io.com/cert.pem
+cafile /etc/letsencrypt/live/$(hostname).meek-io.com/chain.pem
+keyfile /etc/letsencrypt/live/$(hostname).meek-io.com/privkey.pem
 EOF
+
+cd /root/MEEK
+touch certsync
+cat << EOF > certsync
+7 */12 * * * /bin/sh /root/MEEK/cert-sync.sh
+EOF
+crontab certsync
+
+mkdir /etc/letsencrypt/live/$(hostname).meek-io.com
+touch /root/MEEK/cert-sync.sh
+cat << EOF > /root/MEEK/cert-sync.sh
+curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --output /etc/letsencrypt/live/$(hostname).meek-io.com/cert.pem
+curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --output /etc/letsencrypt/live/$(hostname).meek-io.com/chain.pem
+curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --output /etc/letsencrypt/live/$(hostname).meek-io.com/privkey.pem
+EOF
+
+chmod +rwx cert-sync.sh
+######--MOSQUITTO--################################################
 
 echo Install HomeBridge
 curl -sL https://deb.nodesource.com/setup_12.x | sudo bash -
