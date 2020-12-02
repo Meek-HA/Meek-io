@@ -10,6 +10,7 @@ apt install curl -y
 echo Set TimZone to Europe/Amsterdam
 timedatectl set-timezone Europe/Amsterdam
 
+######--DOMOTICZ--################################################
 echo Install Domoticz
 mkdir /home/root
 mkdir /home/root/domoticz
@@ -48,8 +49,8 @@ curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --o
 EOF
 
 chmod +rwx cert-sync.sh
-######--MOSQUITTO--################################################
 
+######--HOMEBRIDGE--################################################
 echo Install HomeBridge
 curl -sL https://deb.nodesource.com/setup_12.x | sudo bash -
 sudo apt-get install -y nodejs gcc g++ make python
@@ -62,10 +63,12 @@ npm install -g homebridge-gsh
 echo Install HomeBridge Alexa plugin
 npm install -g homebridge-alexa
 
+######--APACHE--################################################
 echo Install Apache Webserver
 apt-get install apache2 php php-xml php-curl libapache2-mod-php -y
 systemctl restart apache2
 
+######--DASHTICZ--################################################
 echo Install Dashticz
 cd /var/www/html
 git clone https://github.com/Dashticz/dashticz --branch beta
@@ -74,6 +77,7 @@ cp CONFIG_DEFAULT.js CONFIG.js
 sed -i "/domoticz_ip/c\config['domoticz_ip'] = 'https://$(hostname).meek-io.com';" CONFIG.js
 cd
 
+######--NODE-RED--################################################
 echo Install Node-Red
 npm install -g --unsafe-perm node-red node-red-admin
 npm install -g pm2
@@ -81,6 +85,7 @@ pm2 start /usr/bin/node-red -- -v
 pm2 save
 pm2 startup systemd
 
+######--ZIGBEE2MQTT--################################################
 echo Install/Setup Zigbee2MQTT
 curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
 apt-get install -y nodejs git make g++ gcc
@@ -119,15 +124,18 @@ EOF
 systemctl enable zigbee2mqtt.service
 systemctl start zigbee2mqtt
 
+######--ZIGBEE2MQTT DOMOTICZ PLUGIN--################################################
 echo Install Domoticz Plugin Zigbee2MQTT
 cd /home/root/domoticz/plugins
 git clone https://github.com/stas-demydiuk/domoticz-zigbee2mqtt-plugin.git zigbee2mqtt
 
+######--NGINX--################################################
 echo Install Nginx
 apt install nginx -y
 sed -i 's/80 default_server;/85 default_server;/g' /etc/nginx/sites-enabled/default
 systemctl start nginx
 
+######--CONFIGURATION--################################################
 echo Configuration and Settings
 
 echo Disable Domoticz caching
