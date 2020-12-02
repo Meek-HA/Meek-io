@@ -21,11 +21,14 @@ rm /etc/mosquitto/conf.d/default.conf
 touch /etc/mosquitto/conf.d/default.conf
 cat << EOF > /etc/mosquitto/conf.d/default.conf
 per_listener_settings true
-port 1883
+port 1883 localhost
 
 listener 1884
 allow_anonymous false
 password_file /etc/mosquitto/passwd
+certfile /etc/letsencrypt/live/xxxxxx/cert.pem
+cafile /etc/letsencrypt/live/xxxxxx/chain.pem
+keyfile /etc/letsencrypt/live/xxxxxx/privkey.pem
 EOF
 
 echo Install HomeBridge
