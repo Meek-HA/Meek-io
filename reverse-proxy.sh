@@ -127,4 +127,22 @@ sed -i -e "s/xxxxxx/$NAME/g" /etc/nginx/sites-enabled/$NAME.conf
 #certbot --nginx -d meek-io.com
 certbot --nginx -d $NAME.meek-io.com
 
+#echo -n "Cronjob for certificate publish RUN ONCE"
+#mkdir /var/www/html/cert-sync
+#mkdir /root/MEEK
+#cd /root/MEEK
+#touch certsync
+#cat << EOF > certsync
+#5 */12 * * * /bin/sh /root/MEEK/cert-sync.sh
+#EOF
+#
+#crontab certsync
+
+#touch /root/MEEK/cert-sync.sh
+#cat << EOF > /root/MEEK/cert-sync.sh
+#cp -Lr /etc/letsencrypt/live/ /var/www/html/cert-sync
+#chown -R www-data:www-data /var/www/html/
+#EOF
+#chmod +rwx cert-sync.sh
+
 service nginx reload
