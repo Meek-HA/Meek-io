@@ -33,14 +33,8 @@ cafile /etc/letsencrypt/live/$(hostname).meek-io.com/chain.pem
 keyfile /etc/letsencrypt/live/$(hostname).meek-io.com/privkey.pem
 EOF
 
-cd /root/MEEK
-touch certsync
-cat << EOF > certsync
-7 */12 * * * /bin/sh /root/MEEK/cert-sync.sh
-EOF
-crontab certsync
-
-mkdir /etc/letsencrypt/live/$(hostname).meek-io.com
+mkdir -p /etc/letsencrypt/live/$(hostname).meek-io.com
+mkdir -p /root/MEEK
 touch /root/MEEK/cert-sync.sh
 cat << EOF > /root/MEEK/cert-sync.sh
 curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --output /etc/letsencrypt/live/$(hostname).meek-io.com/cert.pem
@@ -48,7 +42,7 @@ curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --o
 curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --output /etc/letsencrypt/live/$(hostname).meek-io.com/privkey.pem
 EOF
 
-chmod +rwx cert-sync.sh
+chmod +rwx /root/MEEK/cert-sync.sh
 
 ######--HOMEBRIDGE--################################################
 echo Install HomeBridge
@@ -257,13 +251,12 @@ git clone https://github.com/Meek-HA/Meek.io-admin.git /var/www/html/admin
 chown -R www-data:www-data /var/www/html/admin
 
 echo -n "Create cronjob"
-mkdir /root/MEEK
-cd /root/MEEK
-touch cron
+touch /root/MEEK/cron
 cat << EOF > cron
 * * * * * /bin/sh /root/MEEK/update.sh
+7 */12 * * * /bin/sh /root/MEEK/cert-sync.sh
 EOF
-crontab cron
+crontab /root/MEEK/cron
 
 curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/update.sh --output /root/MEEK/update.sh && chmod +rwx /root/MEEK/update.sh
 
