@@ -252,7 +252,7 @@ chown -R www-data:www-data /var/www/html/admin
 
 echo -n "Create cronjob"
 touch /root/MEEK/cron
-cat << EOF > cron
+cat << EOF > /root/MEEK/cron
 * * * * * /bin/sh /root/MEEK/update.sh
 7 */12 * * * /bin/sh /root/MEEK/cert-sync.sh
 EOF
