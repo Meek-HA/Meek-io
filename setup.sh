@@ -56,6 +56,8 @@ echo Install HomeBridge to Google Smart Home plugin
 npm install -g homebridge-gsh
 echo Install HomeBridge Alexa plugin
 npm install -g homebridge-alexa
+sed -i 's/config/config"\n      },\n    {\n     "name": "Domoticz",\n   "server": "127.0.0.1",\n        "port": "8080",\n       "roomid": 0,\n  "mqtt": 0,\n    "ssl": false,\n "dimFix": 0,\n  "platform": "eDomoticz/g' /var/lib/homebridge/config.json
+
 
 ######--APACHE--################################################
 echo Install Apache Webserver
