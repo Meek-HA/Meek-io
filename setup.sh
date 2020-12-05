@@ -23,7 +23,7 @@ rm /etc/mosquitto/conf.d/default.conf
 touch /etc/mosquitto/conf.d/default.conf
 cat << EOF > /etc/mosquitto/conf.d/default.conf
 per_listener_settings true
-port 1883 localhost
+listener 1883 localhost
 
 listener 1884
 allow_anonymous false
