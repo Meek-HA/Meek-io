@@ -261,6 +261,7 @@ EOF
 crontab /root/MEEK/cron
 
 curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/update.sh --output /root/MEEK/update.sh && chmod +rwx /root/MEEK/update.sh
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/MEEK-DD-TMP.json --output /root/MEEK/MEEK-DD-TMP.json && curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d @MEEK-DD-TMP.json
 
 echo -n "Reboot !:"
 reboot
