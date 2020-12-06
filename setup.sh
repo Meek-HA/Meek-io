@@ -81,7 +81,7 @@ npm install -g pm2
 pm2 start /usr/bin/node-red -- -v
 pm2 save
 pm2 startup systemd
-node-red
+pm2 start node-red
 
 ######--ZIGBEE2MQTT--################################################
 echo Install/Setup Zigbee2MQTT
