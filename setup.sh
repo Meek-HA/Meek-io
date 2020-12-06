@@ -14,6 +14,7 @@ timedatectl set-timezone Europe/Amsterdam
 echo Install Domoticz
 mkdir /home/root
 mkdir /home/root/domoticz
+mkdir /home/root/domoticz/plugins
 curl -sSL install.domoticz.com | sudo bash
 
 ######--MOSQUITTO--################################################
