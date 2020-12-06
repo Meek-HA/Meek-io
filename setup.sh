@@ -96,8 +96,8 @@ permit_join: true
 mqtt:
 base_topic: zigbee2mqtt
 server: 'mqtt://localhost'
-serial:
-port: 'tcp://localhost:1775'
+serial: 
+   port: 'tcp://localhost:1775'
 EOF
 
 cat << EOF > /etc/systemd/system/zigbee2mqtt.service
