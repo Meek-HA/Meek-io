@@ -29,9 +29,9 @@ listener 1883 localhost
 listener 1884
 allow_anonymous false
 password_file /etc/mosquitto/passwd
-certfile /etc/letsencrypt/live/$(hostname).meek-io.com/cert.pem
-cafile /etc/letsencrypt/live/$(hostname).meek-io.com/chain.pem
-keyfile /etc/letsencrypt/live/$(hostname).meek-io.com/privkey.pem
+#certfile /etc/letsencrypt/live/$(hostname).meek-io.com/cert.pem
+#cafile /etc/letsencrypt/live/$(hostname).meek-io.com/chain.pem
+#keyfile /etc/letsencrypt/live/$(hostname).meek-io.com/privkey.pem
 EOF
 
 mkdir -p /etc/letsencrypt/live/$(hostname).meek-io.com
