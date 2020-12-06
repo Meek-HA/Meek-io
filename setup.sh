@@ -91,13 +91,19 @@ cd /opt/zigbee2mqtt
 npm ci
 
 cat << EOF > /opt/zigbee2mqtt/data/configuration.yaml
-homeassistant: false
-permit_join: true
 mqtt:
-base_topic: zigbee2mqtt
-server: 'mqtt://localhost'
-serial: 
-   port: 'tcp://localhost:1775'
+  base_topic: zigbee2mqtt
+  server: 'mqtt://localhost'
+
+serial:
+  port: 'tcp://localhost:1775'
+  
+advanced:
+  network_key: GENERATE
+homeassistant: false
+
+permit_join: true
+
 EOF
 
 cat << EOF > /etc/systemd/system/zigbee2mqtt.service
