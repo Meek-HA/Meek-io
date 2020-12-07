@@ -28,18 +28,17 @@ listener 1883 localhost
 listener 1884
 allow_anonymous false
 password_file /etc/mosquitto/passwd
-certfile /etc/letsencrypt/live/$(hostname).meek-io.com/cert.pem
-cafile /etc/letsencrypt/live/$(hostname).meek-io.com/chain.pem
-keyfile /etc/letsencrypt/live/$(hostname).meek-io.com/privkey.pem
+certfile /etc/mosquitto/certs/cert.pem
+cafile /etc/mosquitto/certs/chain.pem
+keyfile /etc/mosquitto/certs/privkey.pem
 EOF
 
-mkdir -p /etc/letsencrypt/live/$(hostname).meek-io.com
 mkdir -p /root/MEEK
 touch /root/MEEK/cert-sync.sh
 cat << EOF > /root/MEEK/cert-sync.sh
-curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --output /etc/letsencrypt/live/$(hostname).meek-io.com/cert.pem
-curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --output /etc/letsencrypt/live/$(hostname).meek-io.com/chain.pem
-curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --output /etc/letsencrypt/live/$(hostname).meek-io.com/privkey.pem
+curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --output /etc/mosquitto/cert.pem
+curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/chain.pem --output /etc/mosquitto/chain.pem
+curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/privkey.pem --output /etc/mosquitto/privkey.pem
 EOF
 
 chmod +rwx /root/MEEK/cert-sync.sh
