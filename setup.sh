@@ -28,6 +28,9 @@ listener 1883 localhost
 listener 1884
 allow_anonymous false
 password_file /etc/mosquitto/passwd
+listener 1885
+allow_anonymous false
+password_file /etc/mosquitto/passwd
 certfile /etc/mosquitto/certs/cert.pem
 cafile /etc/mosquitto/certs/chain.pem
 keyfile /etc/mosquitto/certs/privkey.pem
