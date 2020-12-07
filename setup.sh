@@ -276,5 +276,7 @@ curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d 
 read -r -p "Make sure that on the Reverse Proxy server, the Letsencrypt certificates are available, after that press any key to sync the certificates." key
 bash /root/MEEK/cert-sync.sh
 
+apt-get install python3-dev
+
 echo -n "Reboot !:"
 reboot
