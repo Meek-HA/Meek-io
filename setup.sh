@@ -39,9 +39,9 @@ EOF
 mkdir -p /root/MEEK
 touch /root/MEEK/cert-sync.sh
 cat << EOF > /root/MEEK/cert-sync.sh
-curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --output /etc/mosquitto/cert.pem
-curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/chain.pem --output /etc/mosquitto/chain.pem
-curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/privkey.pem --output /etc/mosquitto/privkey.pem
+curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/cert.pem --output /etc/mosquitto/certs/cert.pem
+curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/chain.pem --output /etc/mosquitto/certs/chain.pem
+curl http://reverseproxy:100/cert-sync/live/$(hostname).meek-io.com/privkey.pem --output /etc/mosquitto/certs/privkey.pem
 EOF
 
 chmod +rwx /root/MEEK/cert-sync.sh
