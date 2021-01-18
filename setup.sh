@@ -50,7 +50,7 @@ chmod +rwx /root/MEEK/cert-sync.sh
 echo Install HomeBridge
 curl -sL https://deb.nodesource.com/setup_12.x | sudo bash -
 sudo apt-get install -y nodejs gcc g++ make python
-npm install -g --unsafe-perm homebridge homebridge-config-ui-x
+npm install -g --unsafe-perm homebridge@1.3.0-beta.46 homebridge-config-ui-x
 hb-service install --user homebridge
 echo Install HomeBridge edomoticz plugin
 npm install -g homebridge-edomoticz
