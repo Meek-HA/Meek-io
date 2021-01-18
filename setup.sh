@@ -53,7 +53,7 @@ sudo apt-get install -y nodejs gcc g++ make python
 npm install -g --unsafe-perm homebridge@1.3.0-beta.46 homebridge-config-ui-x
 hb-service install --user homebridge
 echo Install HomeBridge edomoticz plugin
-npm install -g homebridge-edomoticz
+npm install -g homebridge-edomoticz@2.1.38
 echo Install HomeBridge to Google Smart Home plugin
 npm install -g homebridge-gsh
 echo Install HomeBridge Alexa plugin
