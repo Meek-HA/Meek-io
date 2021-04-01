@@ -48,12 +48,12 @@ chmod +rwx /root/MEEK/cert-sync.sh
 
 ######--HOMEBRIDGE--################################################
 echo Install HomeBridge
-curl -sL https://deb.nodesource.com/setup_12.x | sudo bash -
-sudo apt-get install -y nodejs gcc g++ make python
-npm install -g --unsafe-perm homebridge@1.3.0-beta.46 homebridge-config-ui-x
+curl -sL https://deb.nodesource.com/setup_14.x | sudo bash -
+apt-get install -y nodejs gcc g++ make python net-tools
+npm install -g --unsafe-perm homebridge homebridge-config-ui-x
 hb-service install --user homebridge
 echo Install HomeBridge edomoticz plugin
-npm install -g homebridge-edomoticz@2.1.38
+npm install -g homebridge-edomoticz
 echo Install HomeBridge to Google Smart Home plugin
 npm install -g homebridge-gsh
 echo Install HomeBridge Alexa plugin
@@ -86,8 +86,8 @@ pm2 start node-red
 
 ######--ZIGBEE2MQTT--################################################
 echo Install/Setup Zigbee2MQTT
-curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
-apt-get install -y nodejs git make g++ gcc
+# curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash -
+# apt-get install -y nodejs git make g++ gcc
 git clone https://github.com/Koenkk/zigbee2mqtt.git /opt/zigbee2mqtt
 chown -R root:root /opt/zigbee2mqtt
 cd /opt/zigbee2mqtt
