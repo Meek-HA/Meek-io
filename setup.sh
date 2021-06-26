@@ -275,7 +275,10 @@ echo -n "Admin page"
 git clone https://github.com/Meek-HA/Meek.io-admin.git /var/www/html/admin
 chown -R www-data:www-data /var/www/html/admin
 
+######--ADMIN CONTROL CENTER--################################################
 echo -n "ADMIN Command Center for monitoring, controlling and update functions"
+apt-get install -y inotify-tools
+
 touch /root/MEEK/monitor.sh
 cat << EOF > /root/MEEK/monitor.sh
 #!/bin/bash
