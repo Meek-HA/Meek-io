@@ -10,6 +10,20 @@ apt install curl -y
 echo Set TimZone to Europe/Amsterdam
 timedatectl set-timezone Europe/Amsterdam
 
+######--Set Domain--################################################
+echo Select Domain Name
+prompt="Select Domain:"
+options=("meek-io.com" "mymeek.org")
+PS3="$prompt "
+select opt in "${options[@]}" "Quit"; do
+    case "$REPLY" in
+    1) echo "You picked $opt which is option 1"; domn=$opt; break;;
+    2) echo "You picked $opt which is option 2"; domn=$opt; break;;
+    $((${#options[@]}+1))) echo "TOP!"; break;;
+    *) echo "Invalid input. Try again!";continue;;
+    esac
+done
+
 ######--DOMOTICZ--################################################
 echo Install Domoticz
 mkdir /home/root
@@ -72,7 +86,7 @@ cd /var/www/html
 git clone https://github.com/Dashticz/dashticz --branch beta
 cd dashticz/custom/
 cp CONFIG_DEFAULT.js CONFIG.js
-sed -i "/domoticz_ip/c\config['domoticz_ip'] = 'https://$(hostname).meek-io.com';" CONFIG.js
+sed -i "/domoticz_ip/c\config['domoticz_ip'] = 'https://$(hostname)."$opt"';" /var/www/html/dashticz/custom/CONFIG.js
 cd
 
 ######--NODE-RED--################################################
