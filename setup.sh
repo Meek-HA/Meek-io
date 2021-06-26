@@ -275,20 +275,31 @@ echo -n "Admin page"
 git clone https://github.com/Meek-HA/Meek.io-admin.git /var/www/html/admin
 chown -R www-data:www-data /var/www/html/admin
 
+echo -n "ADMIN Command Center for monitoring, controlling and update functions"
+touch /root/MEEK/monitor.sh
+cat << EOF > /root/MEEK/monitor.sh
+#!/bin/bash
+inotifywait -m -e create -e moved_to -e modify /var/www/html/admin/command|
+while read path action file; do
+bash /root/MEEK/update.sh
+done
+EOF
+
+chmod +x /root/MEEK/monitor.sh
+
 echo -n "Create cronjob"
 touch /root/MEEK/cron
 cat << EOF > /root/MEEK/cron
-* * * * * /bin/sh /root/MEEK/update.sh
-7 */12 * * * /bin/sh /root/MEEK/cert-sync.sh
+@reboot /root/MEEK/monitor.sh
 EOF
 crontab /root/MEEK/cron
 
-curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/update.sh --output /root/MEEK/update.sh && chmod +rwx /root/MEEK/update.sh
-curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/MEEK-DD-TMP.json --output /root/MEEK/MEEK-DD-TMP.json
-curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d @/root/MEEK/MEEK-DD-TMP.json
+#curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/update.sh --output /root/MEEK/update.sh && chmod +rwx /root/MEEK/update.sh
+#curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/MEEK-DD-TMP.json --output /root/MEEK/MEEK-DD-TMP.json
+#curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d @/root/MEEK/MEEK-DD-TMP.json
 
-read -r -p "Make sure that on the Reverse Proxy server, the Letsencrypt certificates are available, after that press any key to sync the certificates." key
-bash /root/MEEK/cert-sync.sh
+#read -r -p "Make sure that on the Reverse Proxy server, the Letsencrypt certificates are available, after that press any key to sync the certificates." key
+#bash /root/MEEK/cert-sync.sh
 
 apt-get install python3-dev -y
 
