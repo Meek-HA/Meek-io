@@ -20,9 +20,8 @@ mkdir -p /mnt/certificate
 mount reverseproxy:/mnt/certificate  /mnt/certificate
 
 cat << EOF > /etc/fstab
-mount reverseproxy:/mnt/certificate  /mnt/certificate
+reverseproxy:/mnt/certificate  /mnt/certificate nfs  defaults 0 0
 EOF
-
 
 ######--DOMOTICZ--################################################
 echo Install Domoticz
