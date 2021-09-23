@@ -16,7 +16,7 @@ mkdir -p /mnt/certificate
 chown -R nobody:nogroup /mnt/certificate/
 chmod 777 /mnt/certificate/
 cat << EOF > /etc/exports
-/mnt/nfs_share  reverseproxy/24(ro,sync,no_subtree_check)
+/mnt/certificate 10.10.10.0/24(ro,sync,no_subtree_check)
 EOF
 
 exportfs -a
