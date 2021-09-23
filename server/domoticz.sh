@@ -19,6 +19,11 @@ apt install nfs-common -y
 mkdir -p /mnt/certificate
 mount reverseproxy:/mnt/certificate  /mnt/certificate
 
+cat << EOF > /etc/fstab
+mount reverseproxy:/mnt/certificate  /mnt/certificate
+EOF
+
+
 ######--DOMOTICZ--################################################
 echo Install Domoticz
 mkdir /home/root
