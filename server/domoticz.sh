@@ -44,6 +44,20 @@ echo Install Dashticz
 cd /var/www/html
 git clone https://github.com/Dashticz/dashticz --branch beta
 
+######--HOMEBRIDGE--################################################
+echo Install HomeBridge
+curl -sL https://deb.nodesource.com/setup_14.x | sudo bash -
+apt-get install -y nodejs gcc g++ make python net-tools
+npm install -g --unsafe-perm homebridge homebridge-config-ui-x
+hb-service install --user homebridge
+echo Install HomeBridge edomoticz plugin
+npm install -g homebridge-edomoticz
+echo Install HomeBridge to Google Smart Home plugin
+npm install -g homebridge-gsh
+echo Install HomeBridge Alexa plugin
+npm install -g homebridge-alexa
+rm /var/lib/homebridge/config.json
+
 ######--NODE-RED--################################################
 echo Install Node-Red
 npm install -g --unsafe-perm node-red node-red-admin
