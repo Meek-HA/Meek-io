@@ -122,6 +122,7 @@ systemctl start nginx
 echo -n "ADMIN Command Center for monitoring, controlling and update functions"
 apt-get install -y inotify-tools
 
+mkdir /root/MEEK
 touch /root/MEEK/monitor.sh
 cat << EOF > /root/MEEK/monitor.sh
 #!/bin/bash
