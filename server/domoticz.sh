@@ -111,6 +111,12 @@ echo Install Domoticz Plugin Zigbee2MQTT
 cd /home/root/domoticz/plugins
 git clone https://github.com/stas-demydiuk/domoticz-zigbee2mqtt-plugin.git zigbee2mqtt
 
+######--NGINX--################################################
+echo Install Nginx
+apt install nginx -y
+unlink /etc/nginx/sites-enabled/default
+systemctl start nginx
+
 ######--ADMIN CONTROL CENTER--################################################
 echo -n "ADMIN Command Center for monitoring, controlling and update functions"
 apt-get install -y inotify-tools
