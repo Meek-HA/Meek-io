@@ -2,6 +2,7 @@
 
 # 1) Create container in unpriviliged mode
 # 2) Enable container -nesting- & -NFS-
+# 3) apt-get install curl -y && curl https://raw.githubusercontent.com/Meek-HA/Meek-io/server/master/domoticz.sh --output domoticz.sh && chmod +rwx domoticz.sh && ./domoticz.sh
 
 echo Update System
 apt-get update -y
