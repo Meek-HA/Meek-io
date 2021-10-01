@@ -69,7 +69,6 @@ pm2 start node-red
 
 ######--ZIGBEE2MQTT--################################################
 echo Install/Setup Zigbee2MQTT
-curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash -
 apt-get install -y nodejs git make g++ gcc
 git clone https://github.com/Koenkk/zigbee2mqtt.git /opt/zigbee2mqtt
 chown -R root:root /opt/zigbee2mqtt
