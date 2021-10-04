@@ -28,3 +28,5 @@ apt-get install nginx -y
 unlink /etc/nginx/sites-enabled/default
 
 apt install certbot python3-certbot-nginx -y
+
+ln -s /etc/letsencrypt/live/ /mnt/certificate
