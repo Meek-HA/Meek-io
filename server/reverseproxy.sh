@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 1) Create container "reverseproxy" in unpriviliged mode
-# 2) Enable container -nesting- & -NFS-
+# 2) Enable container -nesting- & -NFS- & -IP 10.10.10.100/24 -Gateway 10.10.10.1 - DNS 10.10.10.1
 # 3) apt-get install curl -y && curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/server/reverseproxy.sh --output reverseproxy.sh && chmod +rwx reverseproxy.sh && ./reverseproxy.sh
 
 echo Update System
