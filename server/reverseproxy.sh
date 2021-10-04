@@ -26,3 +26,5 @@ systemctl restart nfs-kernel-server
 echo Installl Nginx reverse proxy
 apt-get install nginx -y
 unlink /etc/nginx/sites-enabled/default
+
+apt install certbot python3-certbot-nginx -y
