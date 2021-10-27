@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/server/master-deploy-domoticz.sh --output deploy-domoticz.sh && chmod +rwx deploy-domoticz.sh && ./deploy-domoticz.sh
+# curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/server/deploy-domoticz.sh --output deploy-domoticz.sh && chmod +rwx deploy-domoticz.sh && ./deploy-domoticz.sh
 
 ######--Set Sub-Domain--################################################
 echo -n "Enter subdomain name : "
