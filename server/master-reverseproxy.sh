@@ -13,7 +13,7 @@ timedatectl set-timezone Europe/Amsterdam
 
 echo NFS Share
 apt install nfs-kernel-server -y
-mkdir -p /mnt/certificate/deploy/user
+mkdir -p /mnt/certificate/deploy/
 chown -R nobody:nogroup /mnt/certificate/
 chmod 777 /mnt/certificate/
 cat << EOF > /etc/exports
