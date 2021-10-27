@@ -56,3 +56,7 @@ echo -n "Enter username and password for Mosquitto:"
 read NAME
 echo "Your username is:" $NAME
 mosquitto_passwd -c /etc/mosquitto/passwd $NAME
+
+touch /mnt/certificate/deploy/user
+IP=$(hostname -I)
+echo -n "$IP" >> /mnt/certificate/deploy/user
