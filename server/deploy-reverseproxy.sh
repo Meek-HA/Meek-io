@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/server/deploy-reverseproxy.sh --output deploy-reverseproxy.sh && chmod +rwx deploy-reverseproxy.sh && ./deploy-reverseproxy.sh
-# xxxxxx = Full domainname
+# xxxxxx = Full domain
 # zzzzzz = IP container
 
 ######--Get IP & full domainname for new container--################################################
@@ -9,7 +9,7 @@ IP="$(head -1 /mnt/certificate/deploy/user)"
 NAME="$(tail -1 /mnt/certificate/deploy/user)"
 
 cat <<'EOF'> /etc/nginx/sites-enabled/$NAME.$opt.conf
-# xxxxxx = subdomain
+# xxxxxx = Full domain
 server {
 listen 80;
 server_name xxxxxx;
