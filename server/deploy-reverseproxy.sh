@@ -115,6 +115,8 @@ EOF
 sed -i -e "s/xxxxxx/$NAME/g" /etc/nginx/sites-enabled/$NAME.conf
 sed -i -e "s/zzzzzz/$IP/g" /etc/nginx/sites-enabled/$NAME.conf
 
+rm /mnt/certificate/deploy/user
+
 ######--Issue new Certificte--################################################
 certbot --nginx -d $NAME.$opt
 
