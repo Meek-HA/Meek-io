@@ -32,9 +32,9 @@ password_file /etc/mosquitto/passwd
 listener 1885
 allow_anonymous false
 password_file /etc/mosquitto/passwd
-certfile /mnt/certificate/live/"$NAME"."$opt"/cert.pem
-cafile /etc/mosquitto/certs/live/"$NAME"."$opt"/chain.pem
-keyfile /etc/mosquitto/certs/live/"$NAME"."$opt"/privkey.pem
+certfile /mnt/certificate/live/$NAME.$opt/cert.pem
+cafile /etc/mosquitto/certs/live/$NAME.$opt/chain.pem
+keyfile /etc/mosquitto/certs/live/$NAME.$opt/privkey.pem
 EOF
 
 ######--Username & PasswordD Generation--################################################
