@@ -3,7 +3,10 @@
 # curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/server/deploy-reverseproxy.sh --output deploy-reverseproxy.sh && chmod +rwx deploy-reverseproxy.sh && ./deploy-reverseproxy.sh
 # xxxxxx = subdomain
 # yyyyyy = domain
+# zzzzzz = IP container
 
+######--Get IP from new container--################################################
+IP="$(head -1 /mnt/certificate/deploy/user)"
 
 ######--Set Sub-Domain--################################################
 echo -n "Enter subdomain name : "
@@ -38,7 +41,7 @@ location / {
 proxy_set_header Upgrade $http_upgrade;
 proxy_set_header Connection "upgrade";
 proxy_pass_header Authorization;
-proxy_pass http://xxxxxx:81;
+proxy_pass http://zzzzzz:81;
 proxy_set_header Host $host;
 proxy_set_header X-Real-IP $remote_addr;
 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -50,15 +53,15 @@ proxy_read_timeout 36000s;
 proxy_redirect off;
 }
 location /nodered {
-return 301 https://$host:1880;
+return 301 https://zzzzzz:1880;
 }
 location /homebridge {
-return 301 https://$host:8581;
+return 301 https://zzzzzz:8581;
 }
 #Dashticz subpath forwardoing
 location /dashticz {
 proxy_pass_header Authorization;
-proxy_pass http://xxxxxx:81/dashticz;
+proxy_pass http://zzzzzz:81/dashticz;
 proxy_set_header Host $host;
 proxy_set_header X-Real-IP $remote_addr;
 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -72,7 +75,7 @@ proxy_redirect off;
 #Dashticz subpath forwardoing
 location /admin {
 proxy_pass_header Authorization;
-proxy_pass http://xxxxxx:82/admin;
+proxy_pass http://zzzzzz:82/admin;
 proxy_set_header Host $host;
 proxy_set_header X-Real-IP $remote_addr;
 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -89,7 +92,7 @@ server {
 listen 8581 ssl http2;
 server_name xxxxxx.yyyyyy;
 location / {
-proxy_pass                  http://xxxxxx:8581;
+proxy_pass                  http://zzzzzz:8581;
 proxy_http_version          1.1;
 proxy_buffering             off;
 proxy_set_header            Host $host;
@@ -110,7 +113,7 @@ add_header  Content-Type  text/plain;
 return 200 "User-agent: *\nDisallow: /\n";
 }
 location / {
-proxy_pass http://xxxxxx:1881;
+proxy_pass http://zzzzzz:1881;
 proxy_http_version  1.1;
 proxy_cache_bypass  $http_upgrade;
 proxy_set_header Upgrade $http_upgrade;
@@ -129,6 +132,7 @@ EOF
 
 sed -i -e "s/xxxxxx/$NAME/g" /etc/nginx/sites-enabled/$NAME.$opt.conf
 sed -i -e "s/yyyyyy/$opt/g" /etc/nginx/sites-enabled/$NAME.$opt.conf
+sed -i -e "s/zzzzzz/$IP/g" /etc/nginx/sites-enabled/$NAME.$opt.conf
 
 ######--Issue new Certificte--################################################
 certbot --nginx -d $NAME.$opt
