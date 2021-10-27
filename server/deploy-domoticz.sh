@@ -59,5 +59,5 @@ mosquitto_passwd -c /etc/mosquitto/passwd $NAME
 
 touch /mnt/certificate/deploy/user
 IP=$(hostname -I)
-echo -n "$IP" >> /mnt/certificate/deploy/user
+echo "$IP" >> /mnt/certificate/deploy/user
 echo -n "$NAME" >> /mnt/certificate/deploy/user
