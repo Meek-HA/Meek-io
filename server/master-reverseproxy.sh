@@ -17,7 +17,7 @@ mkdir -p /mnt/certificate/deploy/
 chown -R nobody:nogroup /mnt/certificate/
 chmod 777 /mnt/certificate/
 cat << EOF > /etc/exports
-/mnt/certificate 10.10.10.0/24(ro,sync,no_subtree_check)
+/mnt/certificate 10.10.10.0/24(rw,sync,no_subtree_check)
 EOF
 
 exportfs -a
