@@ -21,7 +21,7 @@ mkdir -p /mnt/certificate
 mount 10.10.10.100:/mnt/certificate  /mnt/certificate
 
 cat << EOF > /etc/fstab
-reverseproxy:/mnt/certificate  /mnt/certificate nfs  defaults 0 0
+10.10.10.100:/mnt/certificate  /mnt/certificate nfs  defaults 0 0
 EOF
 
 ######--DOMOTICZ--################################################
