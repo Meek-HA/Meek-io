@@ -8,7 +8,7 @@
 IP="$(head -1 /mnt/certificate/deploy/user)"
 NAME="$(tail -1 /mnt/certificate/deploy/user)"
 
-cat <<'EOF'> /etc/nginx/sites-enabled/$NAME.$opt.conf
+cat <<'EOF'> /root/new.conf
 # xxxxxx = Full domain
 server {
 listen 80;
@@ -112,9 +112,9 @@ ssl_certificate_key /etc/letsencrypt/live/xxxxxx/privkey.pem; # managed by Certb
 }
 EOF
 
-sed -i -e "s/xxxxxx/$NAME/g" /etc/nginx/sites-enabled/$NAME.conf
-sed -i -e "s/zzzzzz/$IP/g" /etc/nginx/sites-enabled/$NAME.conf
-
+sed -i -e "s/xxxxxx/$NAME/g" /root/new.conf
+sed -i -e "s/zzzzzz/$IP/g" /root/new.conf
+mv /root/new.conf /etc/nginx/sites-enabled/$NAME.conf
 rm /mnt/certificate/deploy/user
 
 ######--Issue new Certificte--################################################
