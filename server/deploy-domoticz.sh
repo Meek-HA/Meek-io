@@ -57,7 +57,8 @@ read NAME
 echo "Your username is:" $NAME
 mosquitto_passwd -c /etc/mosquitto/passwd $NAME
 
-touch /mnt/certificate/deploy/user
+touch /root/user
 IP=$(hostname -I)
-echo "$IP" >> /mnt/certificate/deploy/user
-echo "$NAME"."$opt" >> /mnt/certificate/deploy/user
+echo "$IP" >> /root/user
+echo "$NAME"."$opt" >> /root/user
+mv /root/user /mnt/certificate/deploy/user
