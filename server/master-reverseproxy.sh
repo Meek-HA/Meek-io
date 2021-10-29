@@ -14,10 +14,10 @@ timedatectl set-timezone Europe/Amsterdam
 echo NFS Share
 apt install nfs-kernel-server -y
 mkdir -p /mnt/certificate/deploy/
-chown -R nobody:nogroup /mnt/certificate/
-chmod 777 /mnt/certificate/
+chown -R nobody:nogroup /etc/letsencrypt/live/
+chmod 777 /etc/letsencrypt/live/
 cat << EOF > /etc/exports
-/mnt/certificate 10.10.10.0/24(rw,sync,no_subtree_check)
+/etc/letsencrypt/live/ 10.10.10.0/24(rw,sync,no_subtree_check)
 EOF
 
 exportfs -a
