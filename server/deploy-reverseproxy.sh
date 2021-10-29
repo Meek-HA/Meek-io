@@ -5,8 +5,8 @@
 # zzzzzz = IP container
 
 ######--Get IP & full domainname for new container--################################################
-IP="$(head -1 /mnt/certificate/deploy/user)"
-NAME="$(tail -1 /mnt/certificate/deploy/user)"
+IP="$(head -1 /etc/letsencrypt/live/deploy/user)"
+NAME="$(tail -1 /etc/letsencrypt/live/deploy/user)"
 
 cat <<'EOF'> /root/new.conf
 # xxxxxx = Full domain
@@ -115,7 +115,7 @@ EOF
 sed -i -e "s/xxxxxx/$NAME/g" /root/new.conf
 sed -i -e "s/zzzzzz/$IP/g" /root/new.conf
 mv /root/new.conf /etc/nginx/sites-enabled/$NAME.conf
-rm /mnt/certificate/deploy/user
+rm /etc/letsencrypt/live/deploy/user
 
 ######--Issue new Certificte--################################################
 certbot --nginx -d $NAME.$opt
