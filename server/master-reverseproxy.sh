@@ -29,8 +29,6 @@ unlink /etc/nginx/sites-enabled/default
 
 apt install certbot python3-certbot-nginx -y
 
-ln -s /etc/letsencrypt/live/ /mnt/certificate
-
 ######--NEW USER DEPLOYMENT--################################################
 apt-get install -y inotify-tools
 
@@ -38,7 +36,7 @@ mkdir /root/MEEK
 touch /root/MEEK/new-user.sh
 cat << EOF > /root/MEEK/new-user.sh
 #!/bin/bash
-inotifywait -m -e create -e moved_to -e modify /mnt/certificate/deploy|
+inotifywait -m -e create -e moved_to -e modify /etc/letsencrypt/live/deploy|
 while read path action file; do
 bash /root/deploy-reverseproxy.sh
 done
