@@ -118,6 +118,89 @@ apt install nginx -y
 unlink /etc/nginx/sites-enabled/default
 systemctl start nginx
 
+######--NGINX--################################################
+echo Setup ReverseProxy referrals
+cat <<'EOF'> /etc/nginx/sites-enabled/MEEK.conf
+#Authorization procedure
+server {
+listen       81;
+auth_basic "User Login";
+auth_basic_user_file /etc/nginx/.htpasswd;
+#Domoticz forward
+location / {
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection "upgrade";
+proxy_pass_header Authorization;
+proxy_pass http://127.0.0.1:8080;
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_http_version 1.1;
+proxy_set_header Connection "";
+proxy_buffering off;
+client_max_body_size 0;
+proxy_read_timeout 36000s;
+proxy_redirect off;
+}
+#Dashticz subpath forwarding
+location /dashticz {
+proxy_pass_header Authorization;
+proxy_pass http://127.0.0.1/dashticz;
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_http_version 1.1;
+proxy_set_header Connection "";
+proxy_buffering off;
+client_max_body_size 0;
+proxy_read_timeout 36000s;
+proxy_redirect off;
+}
+}
+
+#Admin panel
+server {
+listen       82;
+auth_basic "Admin Login";
+auth_basic_user_file /etc/nginx/.admin;
+#Admin subpath forwarding
+location /admin {
+proxy_pass_header Authorization;
+proxy_pass http://127.0.0.1/admin;
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_http_version 1.1;
+proxy_set_header Connection "";
+proxy_buffering off;
+client_max_body_size 0;
+proxy_read_timeout 36000s;
+proxy_redirect off;
+}
+}
+
+#Proxywith Admin credentials
+server {
+listen 1881;
+auth_basic "Admin Login";
+auth_basic_user_file /etc/nginx/.admin;
+location / {
+proxy_pass_header Authorization;
+proxy_pass http://127.0.0.1:1880;
+proxy_http_version  1.1;
+proxy_cache_bypass  $http_upgrade;
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection "upgrade";
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-Host $host;
+proxy_set_header X-Forwarded-Port $server_port;
+}
+}
+EOF
+
 ######--ADMIN CONTROL CENTER--################################################
 echo -n "ADMIN Command Center for monitoring, controlling and update functions"
 apt-get install -y inotify-tools
