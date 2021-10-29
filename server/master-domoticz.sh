@@ -18,10 +18,10 @@ apt install curl -y
 echo NFS Share
 apt install nfs-common -y
 mkdir -p /mnt/certificate
-mount 10.10.10.100:/mnt/certificate  /mnt/certificate
+mount 10.10.10.100:/etc/letsencrypt/live/  /mnt/certificate
 
 cat << EOF > /etc/fstab
-10.10.10.100:/mnt/certificate  /mnt/certificate nfs  defaults 0 0
+10.10.10.100:/etc/letsencrypt/live/  /mnt/certificate nfs  defaults 0 0
 EOF
 
 ######--DOMOTICZ--################################################
