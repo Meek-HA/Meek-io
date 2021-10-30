@@ -35,10 +35,10 @@ proxy_read_timeout 36000s;
 proxy_redirect off;
 }
 location /nodered {
-return 301 https://zzzzzz:1880;
+return 301 https://xxxxxx:1880;
 }
 location /homebridge {
-return 301 https://zzzzzz:8581;
+return 301 https://xxxxxx:8581;
 }
 #Dashticz subpath forwardoing
 location /dashticz {
