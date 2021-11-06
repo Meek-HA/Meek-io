@@ -11,9 +11,6 @@ apt-get upgrade -y
 echo Set TimZone to Europe/Amsterdam
 timedatectl set-timezone Europe/Amsterdam
 
-echo Install CurL
-apt install curl -y
-
 ######--NFS Share certificates--################################################
 echo NFS Share
 apt install nfs-common -y
@@ -224,4 +221,9 @@ cat << EOF > /root/MEEK/cron
 EOF
 crontab /root/MEEK/cron
 
+######--DOMOTICZ AUTODISCOVERY--################################################
+cd /home/root/domoticz/plugins
+git clone https://github.com/joba-1/Tasmoticz.git
+
+######--PYTHON DEV.--################################################
 apt-get install python3-dev -y
