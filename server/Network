@@ -63,7 +63,7 @@ WAN port :
 DHCP : no
 IPv4 : 192.168.1.2
 Subnet bit count : 24
-Upstream gateway address : 192.168.1.2
+Upstream gateway address : 192.168.1.1
 DHCP6 : no
 IPv6 : None (press Enter)
 Do you want to revert HTTP as the webConfigurator protocol? no
