@@ -106,3 +106,20 @@ nano /usr/share/perl5/PVE/Storage/NFSPlugin.pm
 # return 0;  ### this line needs to be commented out
 }
 
+-----------
+cp -i /etc/apparmor.d/lxc/lxc-default-cgns /etc/apparmor.d/lxc/lxc-default-with-nfs
+nano /etc/apparmor.d/lxc/lxc-default-with-nfs
+        * replace profile lxc-container-default-cgns by profile lxc-container-default-with-nfs
+        * put the NFS configuration (see below) just before the closing bracket (})
+  mount fstype=nfs,
+  mount fstype=nfs4,
+  mount fstype=nfsd,
+  mount fstype=rpc_pipefs,
+-----------
+In the Master Domoticz and ReverseProxy :
+nano /etc/pve/lxc/103.conf 
+        * add the following line as last line
+lxc.apparmor.profile: lxc-container-default-with-nfs
+-----------
+Restart proxmox
+
