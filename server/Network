@@ -93,5 +93,16 @@ Firewall NAT ->
         Redirecting port range : 10.10.10.100
         Redirecting target port : 80
 Also for port 443, 1880, 8581        
-   
+--------------------------------------------------------------------
+
+NFS Share (Proxmox 6 ), without this NHS, will not work properly.
+
+In your node :
+nano /usr/share/perl5/PVE/Storage/NFSPlugin.pm
+
+        Find below line under " check_connection " and comment out " return 0; ":
+        
+        if (my $err = $@) {
+# return 0;  ### this line needs to be commented out
+}
 
