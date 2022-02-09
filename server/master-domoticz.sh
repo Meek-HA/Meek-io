@@ -107,8 +107,8 @@ User=root
 WantedBy=multi-user.target
 EOF
 
-systemctl enable zigbee2mqtt.service
-systemctl start zigbee2mqtt
+//systemctl enable zigbee2mqtt.service
+//systemctl start zigbee2mqtt
 
 ######--ZIGBEE2MQTT DOMOTICZ PLUGIN--################################################
 echo Install Domoticz Plugin Zigbee2MQTT
