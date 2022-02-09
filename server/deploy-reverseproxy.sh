@@ -67,7 +67,6 @@ EOF
 sed -i -e "s/xxxxxx/$NAME/g" /root/new.conf
 sed -i -e "s/zzzzzz/$IP/g" /root/new.conf
 mv /root/new.conf /etc/nginx/sites-enabled/$NAME.conf
-rm /etc/letsencrypt/live/deploy/user
 
 ######--Issue new Certificte--################################################
 certbot --nginx -d $NAME.$opt
@@ -201,4 +200,4 @@ mv /root/new.conf /etc/nginx/sites-enabled/$NAME.conf
 
 service nginx reload
 
-rm /root/new.conf /etc/nginx/sites-enabled/$NAME.conf
+rm /etc/letsencrypt/live/deploy/user
