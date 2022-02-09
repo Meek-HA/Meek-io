@@ -28,10 +28,10 @@ proxy_read_timeout 36000s;
 proxy_redirect off;
 }
 location /nodered {
-return 301 https://xxxxxx:1880;
+return 301 https://zzzzzz:1880;
 }
 location /homebridge {
-return 301 https://xxxxxx:8581;
+return 301 https://zzzzzz:8581;
 }
 #Dashticz subpath forwarding
 location /dashticz {
@@ -73,7 +73,6 @@ rm /etc/letsencrypt/live/deploy/user
 certbot --nginx -d $NAME.$opt
 
 rm /root/new.conf
-rm /root/new.conf /etc/nginx/sites-enabled/$NAME.conf
 
 cat <<'EOF'> /root/new.conf
 server {
@@ -95,10 +94,10 @@ proxy_read_timeout 36000s;
 proxy_redirect off;
 }
 location /nodered {
-return 301 https://xxxxxx:1880;
+return 301 https://zzzzzz:1880;
 }
 location /homebridge {
-return 301 https://xxxxxx:8581;
+return 301 https://zzzzzz:8581;
 }
 #Dashticz subpath forwarding
 location /dashticz {
@@ -201,3 +200,5 @@ sed -i -e "s/zzzzzz/$IP/g" /root/new.conf
 mv /root/new.conf /etc/nginx/sites-enabled/$NAME.conf
 
 service nginx reload
+
+rm /root/new.conf /etc/nginx/sites-enabled/$NAME.conf
