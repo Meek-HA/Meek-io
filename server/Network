@@ -94,8 +94,11 @@ Firewall NAT ->
         Redirecting target port : 80
 Also for port 443, 1880, 8581        
 --------------------------------------------------------------------
+Disable Hardware Checksum Offload in pFsense:
+System/Advanced/Networking/ check "Disable hardware checksum offload".
+--------------------------------------------------------------------
 
-NFS Share (Proxmox 6 ), without this NHS, will not work properly.
+NFS Share (Proxmox 6 ), without this NFS, will not work properly.
 
 In your node :
 nano /usr/share/perl5/PVE/Storage/NFSPlugin.pm
