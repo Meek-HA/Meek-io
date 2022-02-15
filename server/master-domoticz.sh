@@ -205,6 +205,10 @@ proxy_set_header X-Forwarded-Port $server_port;
 EOF
 
 ######--ADMIN CONTROL CENTER--################################################
+echo -n "Admin page install"
+git clone https://github.com/Meek-HA/Meek.io-admin.git /var/www/html/admin
+chown -R www-data:www-data /var/www/html/admin
+
 echo -n "ADMIN Command Center for monitoring, controlling and update functions"
 apt-get install -y inotify-tools
 
