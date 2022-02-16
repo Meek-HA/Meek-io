@@ -38,8 +38,8 @@ keyfile /etc/mosquitto/certs/live/$NAME.$opt/privkey.pem
 EOF
 
 touch /root/user
-IP=$(hostname -I)
-echo "$IP" >> /root/user
+ip4=$(/sbin/ip -o -4 addr list eth0 | awk '{print $4}' | cut -d/ -f1)
+echo $ip4 >> /root/user
 echo "$NAME"."$opt" >> /root/user
 mv /root/user /mnt/certificate/deploy/user
 
