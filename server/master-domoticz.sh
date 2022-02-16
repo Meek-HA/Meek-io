@@ -46,7 +46,7 @@ git clone https://github.com/Dashticz/dashticz --branch beta
 
 ######--HOMEBRIDGE--################################################
 echo Install HomeBridge
-curl -sL https://deb.nodesource.com/setup_14.x | sudo bash -
+curl -sL https://deb.nodesource.com/setup_16.x | sudo bash -
 apt-get install -y nodejs gcc g++ make python net-tools
 npm install -g --unsafe-perm homebridge homebridge-config-ui-x
 hb-service install --user homebridge
