@@ -42,7 +42,8 @@ systemctl restart apache2
 ######--DASHTICZ--################################################
 echo Install Dashticz
 cd /var/www/html
-git clone https://github.com/Dashticz/dashticz --branch beta
+git clone --depth 1 -b v3.9-master https://github.com/Dashticz/dashticz
+//git clone https://github.com/Dashticz/dashticz --branch beta
 
 ######--NODEJS--################################################
 echo Install HomeBridge
