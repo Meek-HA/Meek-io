@@ -58,14 +58,14 @@ sed -i 's/config/config"\n      },\n    {\n     "name": "Domoticz",\n   "server"
 echo -n "Enter username and password for user account:"
 read NAME
 echo "Your username is:" $NAME
-rm /etc/nginx/.htpasswd
+rm -f /etc/nginx/.htpasswd
 sh -c "echo -n "${NAME}:" >> /etc/nginx/.htpasswd"
 sh -c "openssl passwd -apr1 >> /etc/nginx/.htpasswd"
 
 echo -n "Enter username and password for admin account:"
 read NAME
 echo "Your username is:" $NAME
-rm /etc/nginx/.admin
+rm -f /etc/nginx/.admin
 sh -c "echo -n "${NAME}:" >> /etc/nginx/.admin"
 sh -c "openssl passwd -apr1 >> /etc/nginx/.admin"
 
