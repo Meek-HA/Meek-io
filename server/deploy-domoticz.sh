@@ -3,7 +3,7 @@
 # curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/server/deploy-domoticz.sh --output deploy-domoticz.sh && chmod +rwx deploy-domoticz.sh && ./deploy-domoticz.sh
 
 ######--Set Sub-Domain--################################################
-echo -n "Enter subdomain name : "
+echo -n "Enter Container-,Subdomain name : "
 read NAME
 
 ######--Set Domain--################################################
@@ -37,6 +37,12 @@ cafile /etc/mosquitto/certs/live/$NAME.$opt/chain.pem
 keyfile /etc/mosquitto/certs/live/$NAME.$opt/privkey.pem
 EOF
 
+touch /root/user
+IP=$(hostname -I)
+echo "$IP" >> /root/user
+echo "$NAME"."$opt" >> /root/user
+mv /root/user /mnt/certificate/deploy/user
+
 ######--Username & PasswordD Generation--################################################
 echo -n "Enter username and password for user account:"
 read NAME
@@ -57,8 +63,4 @@ read NAME
 echo "Your username is:" $NAME
 mosquitto_passwd -c /etc/mosquitto/passwd $NAME
 
-touch /root/user
-IP=$(hostname -I)
-echo "$IP" >> /root/user
-echo "$NAME"."$opt" >> /root/user
-mv /root/user /mnt/certificate/deploy/user
+echo -n "In container -- Reverse Proxy --, execute  ./cert.sh"
