@@ -63,4 +63,4 @@ read NAME
 echo "Your username is:" $NAME
 mosquitto_passwd -c /etc/mosquitto/passwd $NAME
 
-echo -n "In container -- Reverse Proxy --, execute  ./cert.sh"
+echo -n "In container -- Reverse Proxy --, execute  ./cert.sh  !"
