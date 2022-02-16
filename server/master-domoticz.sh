@@ -58,10 +58,6 @@ pm2 save
 pm2 startup systemd
 pm2 start node-red
 
-##Tasmote MQTT-DSMR to Domoticz-P1-Lan
-curl https://raw.githubusercontent.com/Meek-HA/Tasmota/main/DSMR-Parser.json --output /root/MEEK/DSMR-Parser.json
-curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d @/root/MEEK/DSMR-Parser.json
-
 ######--ZIGBEE2MQTT--################################################
 echo Install/Setup Zigbee2MQTT
 apt-get install -y nodejs git make g++ gcc
@@ -228,3 +224,7 @@ git clone https://github.com/joba-1/Tasmoticz.git
 
 ######--PYTHON DEV.--################################################
 apt-get install python3-dev -y
+
+##Tasmote MQTT-DSMR to Domoticz-P1-Lan
+curl https://raw.githubusercontent.com/Meek-HA/Tasmota/main/DSMR-Parser.json --output /root/MEEK/DSMR-Parser.json
+curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d @/root/MEEK/DSMR-Parser.json
