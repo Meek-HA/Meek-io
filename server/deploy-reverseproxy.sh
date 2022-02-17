@@ -5,7 +5,7 @@
 # zzzzzz = IP container
 
 ######--Get IP & full domainname for new container--################################################
-cp /etc/letsencrypt/live/deploy/user /root/user
+cp /etc/letsencrypt/archive/deploy/user /root/user
 IP="$(head -1 /root/user)"
 NAME="$(tail -1 /root/user)"
 
