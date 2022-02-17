@@ -13,11 +13,11 @@ timedatectl set-timezone Europe/Amsterdam
 
 echo NFS Share
 apt install nfs-kernel-server -y
-mkdir -p /etc/letsencrypt/live/deploy/
-chown -R nobody:nogroup /etc/letsencrypt/live/
-chmod 777 /etc/letsencrypt/live/
+mkdir -p /etc/letsencrypt/archive/deploy/
+chown -R nobody:nogroup /etc/letsencrypt/archive/
+chmod 777 /etc/letsencrypt/archive/
 cat << EOF > /etc/exports
-/etc/letsencrypt/live/ 10.10.10.0/24(rw,sync,no_subtree_check,crossmnt)
+/etc/letsencrypt/archive/ 10.10.10.0/24(rw,sync,no_subtree_check,crossmnt)
 EOF
 
 exportfs -a
@@ -36,7 +36,7 @@ mkdir /root/MEEK
 touch /root/MEEK/new-user.sh
 cat << EOF > /root/MEEK/new-user.sh
 #!/bin/bash
-inotifywait -m -e create -e moved_to -e modify /etc/letsencrypt/live/deploy|
+inotifywait -m -e create -e moved_to -e modify /etc/letsencrypt/archive/deploy|
 while read path action file; do
 bash /root/deploy-reverseproxy.sh
 done
