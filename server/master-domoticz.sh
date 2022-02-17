@@ -17,10 +17,10 @@ timedatectl set-timezone Europe/Amsterdam
 echo NFS Share
 apt install nfs-common -y
 mkdir -p /mnt/certificate
-mount 10.10.10.100:/etc/letsencrypt/live/  /mnt/certificate
+mount 10.10.10.100:/etc/letsencrypt/archive/  /mnt/certificate
 
 cat << EOF > /etc/fstab
-10.10.10.100:/etc/letsencrypt/live/  /mnt/certificate nfs  defaults 0 0
+10.10.10.100:/etc/letsencrypt/archive/  /mnt/certificate nfs  defaults 0 0
 EOF
 
 ######--DOMOTICZ--################################################
