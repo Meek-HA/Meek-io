@@ -120,9 +120,10 @@ nano /etc/apparmor.d/lxc/lxc-default-with-nfs
   mount fstype=nfsd,
   mount fstype=rpc_pipefs,
 -----------
-In the Master Domoticz and ReverseProxy :
-nano /etc/pve/lxc/103.conf 
-        * add the following line as last line
-lxc.apparmor.profile: lxc-container-default-with-nfs
+Deprecated 
+Deprecated      In the Master Domoticz and ReverseProxy :
+Deprecated      nano /etc/pve/lxc/103.conf 
+Deprecated         * add the following line as last line
+Deprecated      lxc.apparmor.profile: lxc-container-default-with-nfs
 -----------
 Restart proxmox
