@@ -55,7 +55,7 @@ iface vmbr1 inet static
         post-down iptables -t nat -D POSTROUTING -s '192.168.1.0/24' -o vmbr0 -j MASQUERADE        
 --------------------------------------------------------------------
 
-pfSense :
+pfSense : Guest OS Type : Other , Bus/Device : VirtIO Block , HDD:8GB , 1 Soc & 1 Core, Display:Spice , 1Gb RAM 2x , 2 ETH Bridge vmbr1 & vmbr2
 --------------------------------------------------------------------
 1)Assign interfaces ->
 
@@ -126,4 +126,3 @@ nano /etc/pve/lxc/103.conf
 lxc.apparmor.profile: lxc-container-default-with-nfs
 -----------
 Restart proxmox
-
