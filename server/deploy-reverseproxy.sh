@@ -165,7 +165,7 @@ if echo "$answer" | grep -iq "^y" ;then
         certbot run -n --nginx --agree-tos -d xxxxxx -m  cert@mymeek.org --redirect
         mv /root/newssl.conf /etc/nginx/sites-enabled/xxxxxx.conf
         service nginx reload
-        rm /etc/letsencrypt/live/deploy/user
+        rm /etc/letsencrypt/archive/deploy/user
         echo Done, browse to xxxxxx to check
 else
     echo No
