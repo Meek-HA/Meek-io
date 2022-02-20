@@ -26,10 +26,10 @@ touch /etc/mosquitto/conf.d/default.conf
 cat << EOF > /etc/mosquitto/conf.d/default.conf
 per_listener_settings true
 listener 1883 localhost
-listener 1884
+listener xxxContainerxxx01
 allow_anonymous false
 password_file /etc/mosquitto/passwd
-listener 1885
+listener xxxContainerxxx02
 allow_anonymous false
 password_file /etc/mosquitto/passwd
 certfile /mnt/certificate/$NAME.$opt/cert.pem
@@ -42,6 +42,8 @@ ip4=$(/sbin/ip -o -4 addr list eth0 | awk '{print $4}' | cut -d/ -f1)
 echo $ip4 >> /root/user
 echo "$NAME"."$opt" >> /root/user
 mv /root/user /mnt/certificate/deploy/user
+Container="${ip4##*.}"
+sed -i -e "s/xxxContainerxxx/$Container/g" /etc/mosquitto/conf.d/default.conf
 
 ######--Homebridge--################################################
 npm install -g --unsafe-perm homebridge homebridge-config-ui-x
