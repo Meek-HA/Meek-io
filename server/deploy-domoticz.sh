@@ -32,9 +32,9 @@ password_file /etc/mosquitto/passwd
 listener xxxContainerxxx02
 allow_anonymous false
 password_file /etc/mosquitto/passwd
-certfile /mnt/certificate/$NAME.$opt/cert.pem
-cafile /mnt/certificate/$NAME.$opt/chain.pem
-keyfile /mnt/certificate/$NAME.$opt/privkey.pem
+certfile /mnt/certificate/$NAME.$opt/cert1.pem
+cafile /mnt/certificate/$NAME.$opt/chain1.pem
+keyfile /mnt/certificate/$NAME.$opt/privkey1.pem
 EOF
 
 touch /root/user
