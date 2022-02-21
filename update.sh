@@ -121,7 +121,7 @@ FILE=/var/www/html/admin/command/domoticz-restart
 if [ -f "$FILE" ];
        then
               /etc/init.d/domoticz.sh restart
-              echo $(date -u) "Restart Domoticz Service." >> log.tx
+              echo $(date -u) "Restart Domoticz Service." >> /root/MEEK/log.txt
               rm /var/www/html/admin/command/domoticz-restart
-              echo $(date -u) "domoticz-restart file deleted." >> /root/MEEK/log.txtt
+              echo $(date -u) "domoticz-restart file deleted." >> /root/MEEK/log.txt
 fi
