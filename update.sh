@@ -6,7 +6,6 @@ if [ -f "$FILE" ];
        then
               if test `find "/var/www/html/admin/command/updating" -mmin +4`
                      then
-                     touch log.txt
                      echo $(date -u) "Deleting updating file" >> /root/MEEK/log.txt
                      rm /var/www/html/admin/command/updating
               fi
@@ -16,7 +15,6 @@ fi
 FILE=/var/www/html/admin/command/updating
 if [ -f "$FILE" ];
        then
-              touch log.txt
               echo $(date -u) "Updating in progress, breaking bash." >> /root/MEEK/log.txt
               exit
 fi
@@ -42,7 +40,6 @@ if [ -f "$FILE" ];
               touch /var/www/html/admin/command/updating
               echo $(date -u) "Zigbee2Mqtt exists." >> /root/MEEK/log.txt
               rm /var/www/html/admin/command/zigbee2mqtt-update
-              touch log.txt
               echo $(date -u) "Zigbee2Mqtt file deleted." >> /root/MEEK/log.txt
               systemctl stop zigbee2mqtt
               cd /opt/zigbee2mqtt
@@ -104,7 +101,6 @@ FILE=/var/www/html/admin/command/domoticz-stop
 if [ -f "$FILE" ];
          then
               /etc/init.d/domoticz.sh stop
-              touch log.txt
               echo $(date -u) "Stop Domoticz Service." >> /root/MEEK/log.txt
               rm /var/www/html/admin/command/domoticz-stop
               echo $(date -u) "domoticz-stop file deleted." >> /root/MEEK/log.txt
@@ -115,7 +111,6 @@ FILE=/var/www/html/admin/command/domoticz-start
 if [ -f "$FILE" ];
          then
               /etc/init.d/domoticz.sh start
-              touch log.txt
               echo $(date -u) "Start Domoticz Service." >> /root/MEEK/log.txt
               rm /var/www/html/admin/command/domoticz-start
               echo $(date -u) "domoticz-start file deleted." >> /root/MEEK/log.txt
@@ -126,7 +121,6 @@ FILE=/var/www/html/admin/command/domoticz-restart
 if [ -f "$FILE" ];
        then
               /etc/init.d/domoticz.sh restart
-              touch log.txt
               echo $(date -u) "Restart Domoticz Service." >> log.tx
               rm /var/www/html/admin/command/domoticz-restart
               echo $(date -u) "domoticz-restart file deleted." >> /root/MEEK/log.txtt
