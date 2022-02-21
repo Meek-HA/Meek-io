@@ -125,3 +125,29 @@ if [ -f "$FILE" ];
               rm /var/www/html/admin/command/domoticz-restart
               echo $(date -u) "domoticz-restart file deleted." >> /root/MEEK/log.txt
 fi
+
+#Check --zigbee2mqtt-start--
+FILE=/var/www/html/admin/command/zigbee2mqtt-start
+if [ -f "$FILE" ];
+        then
+                touch /var/www/html/admin/command/updating
+                cd /opt/zigbee2mqtt
+                npm start
+                echo $(date -u) "zigbee2mqtt start." >> /root/MEEK/log.txt
+                rm /var/www/html/admin/command/zigbee2mqtt-start
+                rm /var/www/html/admin/command/updating
+                echo $(date -u) "zigbee2mqtt-start file deleted." >> /root/MEEK/log.txt
+fi
+
+#Check --zigbee2mqtt-stop--
+FILE=/var/www/html/admin/command/zigbee2mqtt-stop
+if [ -f "$FILE" ];
+        then
+                touch /var/www/html/admin/command/updating
+                cd /opt/zigbee2mqtt
+                npm stop
+                echo $(date -u) "zigbee2mqtt stop." >> /root/MEEK/log.txt
+                rm /var/www/html/admin/command/zigbee2mqtt-stop
+                rm /var/www/html/admin/command/updating
+                echo $(date -u) "zigbee2mqtt-stop file deleted." >> /root/MEEK/log.txt
+fi
