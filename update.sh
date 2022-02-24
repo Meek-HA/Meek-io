@@ -131,8 +131,7 @@ FILE=/var/www/html/admin/command/zigbee2mqtt-start
 if [ -f "$FILE" ];
         then
         touch /var/www/html/admin/command/updating
-        cd /opt/zigbee2mqtt
-        npm start
+        systemctl start zigbee2mqtt
         echo $(date -u) "zigbee2mqtt start." >> /root/MEEK/log.txt
         rm /var/www/html/admin/command/zigbee2mqtt-start
         rm /var/www/html/admin/command/updating
@@ -144,8 +143,7 @@ FILE=/var/www/html/admin/command/zigbee2mqtt-stop
 if [ -f "$FILE" ];
         then
         touch /var/www/html/admin/command/updating
-        cd /opt/zigbee2mqtt
-        npm stop
+        systemctl stop zigbee2mqtt
         echo $(date -u) "zigbee2mqtt stop." >> /root/MEEK/log.txt
         rm /var/www/html/admin/command/zigbee2mqtt-stop
         rm /var/www/html/admin/command/updating
