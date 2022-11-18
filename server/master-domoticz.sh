@@ -115,10 +115,10 @@ cat <<'EOF'> /etc/nginx/sites-enabled/MEEK.conf
 #Authorization procedure
 server {
 listen       81;
-auth_basic "User Login";
-auth_basic_user_file /etc/nginx/.htpasswd;
 #Domoticz forward
 location / {
+auth_basic "User Login";
+auth_basic_user_file /etc/nginx/.htpasswd;
 proxy_set_header Upgrade $http_upgrade;
 proxy_set_header Connection "upgrade";
 proxy_pass_header Authorization;
@@ -135,6 +135,8 @@ proxy_redirect off;
 }
 #Dashticz subpath forwarding
 location /dashticz {
+auth_basic "User Login";
+auth_basic_user_file /etc/nginx/.htpasswd;
 proxy_pass_header Authorization;
 proxy_pass http://127.0.0.1/dashticz;
 proxy_set_header Host $host;
