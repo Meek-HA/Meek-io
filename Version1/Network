@@ -14,10 +14,7 @@ vmbr0 is the bridged to the physical interface (eth0)
 
 Create new Linux Bridges :
 
-WAN (vmbr1):
-192.168.1.1/24
-
-LAN (vmbr2):
+LAN (vmbr1):
 10.10.10.0/24
 
 nano /etc/network/interfaces
