@@ -228,6 +228,10 @@ crontab /root/MEEK/cron
 cd /home/root/domoticz/plugins
 git clone https://github.com/joba-1/Tasmoticz.git
 
+######--HOMEBRIDGE--################################################
+curl -sSfL https://repo.homebridge.io/KEY.gpg | sudo gpg --dearmor | sudo tee /usr/share/keyrings/homebridge.gpg  > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/homebridge.gpg] https://repo.homebridge.io stable main" | sudo tee /etc/apt/sources.list.d/homebridge.list > /dev/null
+
 ######--PYTHON DEV.--################################################
 apt-get install python3-dev -y
 
