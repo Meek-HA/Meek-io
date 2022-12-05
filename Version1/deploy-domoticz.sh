@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/server/deploy-domoticz.sh --output deploy-domoticz.sh && chmod +rwx deploy-domoticz.sh && ./deploy-domoticz.sh
+apt-get update -y
 
 ######--Set Sub-Domain--################################################
 echo -n "Enter Container-,Subdomain name : "
@@ -46,8 +47,9 @@ Container="${ip4##*.}"
 sed -i -e "s/xxxContainerxxx/$Container/g" /etc/mosquitto/conf.d/default.conf
 
 ######--Homebridge--################################################
-npm install -g --unsafe-perm homebridge homebridge-config-ui-x
-hb-service install --user homebridge
+apt-get install homebridge
+#npm install -g --unsafe-perm homebridge homebridge-config-ui-x
+#hb-service install --user homebridge
 echo Install HomeBridge edomoticz plugin
 npm install -g homebridge-edomoticz
 echo Install HomeBridge to Google Smart Home plugin
