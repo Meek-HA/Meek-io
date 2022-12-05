@@ -195,7 +195,11 @@ EOF
 ######--ADMIN CONTROL CENTER--################################################
 echo -n "Admin page install"
 mkdir /var/www/html/admin/command
-git clone https://github.com/Meek-HA/Meek.io-admin.git /var/www/html/admin
+cd /var/www/html/admin
+wget https://github.com/Meek-HA/Meek-io/tree/master/Version1/admin/index.php
+wget https://github.com/Meek-HA/Meek-io/tree/master/Version1/admin/capw.php
+wget https://github.com/Meek-HA/Meek-io/tree/master/Version1/admin/cmqtpw.php
+wget https://github.com/Meek-HA/Meek-io/tree/master/Version1/admin/cupw.php
 chown -R www-data:www-data /var/www/html/admin
 
 echo -n "ADMIN Command Center for monitoring, controlling and update functions"
