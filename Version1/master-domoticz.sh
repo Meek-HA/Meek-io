@@ -28,7 +28,11 @@ echo Install Domoticz
 mkdir /home/root
 mkdir /home/root/domoticz
 mkdir /home/root/domoticz/plugins
-curl -sSL install.domoticz.com | sudo bash
+cd
+wget http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb
+dpkg -i libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb
+curl -sSfL https://install.domoticz.com --output domo.sh
+
 
 ######--MOSQUITTO--################################################
 echo Install Mosquitto
