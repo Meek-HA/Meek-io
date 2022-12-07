@@ -54,7 +54,7 @@ git clone https://github.com/Dashticz/dashticz
 
 ######--NODEJS--################################################
 echo Install HomeBridge
-curl -sL https://deb.nodesource.com/setup_16.x | sudo bash -
+curl -sL https://deb.nodesource.com/setup_18.x | sudo bash -
 apt-get install -y nodejs gcc g++ make python net-tools
 
 ######--NODE-RED--################################################
