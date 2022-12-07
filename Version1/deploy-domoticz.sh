@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/server/deploy-domoticz.sh --output deploy-domoticz.sh && chmod +rwx deploy-domoticz.sh && ./deploy-domoticz.sh
+# curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/deploy-domoticz.sh --output deploy-domoticz.sh && chmod +rwx deploy-domoticz.sh && ./deploy-domoticz.sh
 apt-get update -y
 
 ######--Set Sub-Domain--################################################
