@@ -32,7 +32,11 @@ cd
 wget http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb
 dpkg -i libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb
 curl -sSfL https://install.domoticz.com --output domo.sh
-
+sed -i 's+http://www.domoticz.com/download.php?channel=release&type=release&system=${OS}&machine=${MACH}+https://releases.domoticz.com/releases/beta/domoticz_linux_x86_64.tgz+g' domo.sh
+chmod +rwx domo.sh
+./domo.sh
+rm libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb
+rm domo.sh
 
 ######--MOSQUITTO--################################################
 echo Install Mosquitto
@@ -46,8 +50,7 @@ systemctl restart apache2
 ######--DASHTICZ--################################################
 echo Install Dashticz
 cd /var/www/html
-git clone --depth 1 -b v3.9-master https://github.com/Dashticz/dashticz
-//git clone https://github.com/Dashticz/dashticz --branch beta
+git clone https://github.com/Dashticz/dashticz
 
 ######--NODEJS--################################################
 echo Install HomeBridge
