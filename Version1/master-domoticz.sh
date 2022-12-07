@@ -2,7 +2,7 @@
 
 # 1) Create container in unpriviliged mode , MAX MBPS 3
 # 2) Enable container -nesting- & -NFS-
-# 3) apt-get install curl -y && curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/server/master-domoticz.sh --output domoticz.sh && chmod +rwx domoticz.sh && ./domoticz.sh
+# 3) apt-get install curl -y && curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/master-domoticz.sh --output domoticz.sh && chmod +rwx domoticz.sh && ./domoticz.sh
 # 4) Domoticz : Hardware - " MQTT Gateway 127.0.0.1 " , " Autodiscovery Tasmota " , " MEEK DD - P1 port 1886 " Dummy "
 #               Settings - " Location - MEEK-IO - Latitude : 51.49955 , Longtitude : 3.61480 " , " Enable Automatic Backup "
 
