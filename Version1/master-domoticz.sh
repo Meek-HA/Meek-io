@@ -201,6 +201,7 @@ EOF
 
 ######--ADMIN CONTROL CENTER--################################################
 echo -n "Admin page install"
+mkdir /var/www/html/admin
 mkdir /var/www/html/admin/command
 cd /var/www/html/admin
 wget https://github.com/Meek-HA/Meek-io/tree/master/Version1/admin/index.php
