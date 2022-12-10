@@ -167,6 +167,7 @@ if echo "$answer" | grep -iq "^y" ;then
         service nginx reload
         rm /etc/letsencrypt/archive/deploy/user
         echo Done, browse to xxxxxx to check
+        chmod -R +rw /etc/letsencrypt/archive/
 else
     echo No
 fi
