@@ -242,7 +242,3 @@ echo "deb [signed-by=/usr/share/keyrings/homebridge.gpg] https://repo.homebridge
 
 ######--PYTHON DEV.--################################################
 apt-get install python3-dev -y
-
-##Tasmote MQTT-DSMR to Domoticz-P1-Lan
-curl https://raw.githubusercontent.com/Meek-HA/Tasmota/main/DSMR-Parser.json --output /root/MEEK/DSMR-Parser.json
-curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d @/root/MEEK/DSMR-Parser.json
