@@ -78,4 +78,8 @@ read NAME
 echo "Your username is:" $NAME
 mosquitto_passwd -c /etc/mosquitto/passwd $NAME
 
+##Tasmote MQTT-DSMR to Domoticz-P1-Lan
+curl https://raw.githubusercontent.com/Meek-HA/Tasmota/main/DSMR-Parser.json --output /root/MEEK/DSMR-Parser.json
+curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d @/root/MEEK/DSMR-Parser.json
+
 echo -n "In container -- Reverse Proxy --, execute  ./cert.sh  !"
