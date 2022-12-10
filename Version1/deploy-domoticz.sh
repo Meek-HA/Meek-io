@@ -27,6 +27,7 @@ touch /etc/mosquitto/conf.d/default.conf
 cat << EOF > /etc/mosquitto/conf.d/default.conf
 per_listener_settings true
 listener 1883 localhost
+allow_anonymous true
 listener xxxContainerxxx01
 allow_anonymous false
 password_file /etc/mosquitto/passwd
