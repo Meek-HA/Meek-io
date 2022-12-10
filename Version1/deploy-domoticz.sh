@@ -58,6 +58,12 @@ echo Install HomeBridge Alexa plugin
 npm install -g homebridge-alexa
 sed -i 's/config/config"\n      },\n    {\n     "name": "Domoticz",\n   "server": "127.0.0.1",\n        "port": "8080",\n       "roomid": 0,\n  "mqtt": 0,\n    "ssl": false,\n "dimFix": 0,\n  "platform": "eDomoticz/g' /var/lib/homebridge/config.json
 
+######--Node-Red--################################################
+pm2 start /usr/bin/node-red -- -v
+pm2 save
+pm2 startup systemd
+pm2 start node-red
+
 ######--Username & PasswordD Generation--################################################
 echo -n "Enter username and password for user account:"
 read NAME
