@@ -204,10 +204,10 @@ echo -n "Admin page install"
 mkdir /var/www/html/admin
 mkdir /var/www/html/admin/command
 cd /var/www/html/admin
-wget https://github.com/Meek-HA/Meek-io/tree/master/Version1/admin/index.php
-wget https://github.com/Meek-HA/Meek-io/tree/master/Version1/admin/capw.php
-wget https://github.com/Meek-HA/Meek-io/tree/master/Version1/admin/cmqtpw.php
-wget https://github.com/Meek-HA/Meek-io/tree/master/Version1/admin/cupw.php
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/admin/index.php --output index.php
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/admin/capw.php --output capw.php
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/admin/cmqtpw.php --output cmqtpw.php
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/admin/cupw.php --output cupw.php
 chown -R www-data:www-data /var/www/html/admin
 
 echo -n "ADMIN Command Center for monitoring, controlling and update functions"
