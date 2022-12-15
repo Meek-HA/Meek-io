@@ -56,6 +56,7 @@ git clone https://github.com/Dashticz/dashticz
 echo Install HomeBridge
 curl -sL https://deb.nodesource.com/setup_18.x | sudo bash -
 apt-get install -y nodejs gcc g++ make python net-tools
+apt-get install -y nodejs git make g++ gcc
 
 ######--NODE-RED--################################################
 echo Install Node-Red
@@ -68,7 +69,6 @@ pm2 start node-red
 
 ######--ZIGBEE2MQTT--################################################
 echo Install/Setup Zigbee2MQTT
-apt-get install -y nodejs git make g++ gcc
 git clone https://github.com/Koenkk/zigbee2mqtt.git /opt/zigbee2mqtt
 chown -R root:root /opt/zigbee2mqtt
 cd /opt/zigbee2mqtt
