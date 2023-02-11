@@ -35,7 +35,7 @@ curl -sSfL https://install.domoticz.com --output domo.sh
 sed -i 's+http://www.domoticz.com/download.php?channel=release&type=release&system=${OS}&machine=${MACH}+https://releases.domoticz.com/releases/beta/domoticz_linux_x86_64.tgz+g' domo.sh
 chmod +rwx domo.sh
 ./domo.sh
-rm libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb
+rm libssl1.1_1.1.1f-1ubuntu2.17_amd64.deb
 rm domo.sh
 
 ######--MOSQUITTO--################################################
