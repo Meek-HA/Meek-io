@@ -48,7 +48,7 @@ Container="${ip4##*.}"
 sed -i -e "s/xxxContainerxxx/$Container/g" /etc/mosquitto/conf.d/default.conf
 
 ######--Homebridge--################################################
-apt-get install homebridge
+apt-get install homebridge -y
 #npm install -g --unsafe-perm homebridge homebridge-config-ui-x
 #hb-service install --user homebridge
 echo Install HomeBridge edomoticz plugin
