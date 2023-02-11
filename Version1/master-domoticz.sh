@@ -38,6 +38,24 @@ chmod +rwx domo.sh
 rm libssl1.1_1.1.1f-1ubuntu2.17_amd64.deb
 rm domo.sh
 
+echo Domoticz Service without passwword
+touch /etc/systemd/system/domoticz.service
+cat << EOF > /etc/systemd/system/domoticz.service
+[Unit]
+       Description=domoticz_service
+[Service]
+       User=root
+       Group=root
+       ExecStart=/home/root/domoticz/domoticz -nowwwpwd -www 8080 -sslwww 443
+       WorkingDirectory=/home/root/domoticz
+       Restart=on-failure
+       RestartSec=1m
+[Install]
+       WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable domoticz.service
+
 ######--MOSQUITTO--################################################
 echo Install Mosquitto
 apt-get install mosquitto -y
@@ -246,3 +264,17 @@ echo "deb [signed-by=/usr/share/keyrings/homebridge.gpg] https://repo.homebridge
 
 ######--PYTHON DEV.--################################################
 apt-get install python3-dev -y
+
+######--SOCAT / VIRTUAL USB--################################################
+apt-get install socat -y
+touch /etc/systemd/system/z2m.service
+cat << EOF > /etc/systemd/system/z2m.service
+[Unit]
+Description=Virtual USB Device on port xxxContainerxxx05 for Zigbee2MQTT as USBdevice /dev/ttyACM0
+
+[Service]
+ExecStart=/usr/bin/socat pty,raw,echo=0,link=/dev/ttyACM0,mode=777 tcp-listen:xxxContainerxxx05,keepalive,nodelay,reuseaddr,keepidle=1,keepintvl=1,keepcnt=5,su=nobody
+
+[Install]
+WantedBy=multi-user.target
+EOF
