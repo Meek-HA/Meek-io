@@ -79,12 +79,14 @@ mqtt:
   base_topic: zigbee2mqtt
   server: 'mqtt://localhost'
 serial:
-  port: 'tcp://localhost:1775'
+  port: /dev/ttyACM0
   
 advanced:
   network_key: GENERATE
 homeassistant: false
 permit_join: true
+frontend:
+  port: 9090
 EOF
 
 cat << EOF > /etc/systemd/system/zigbee2mqtt.service
@@ -97,6 +99,7 @@ WorkingDirectory=/opt/zigbee2mqtt
 StandardOutput=inherit
 StandardError=inherit
 Restart=always
+RestartSec=10s
 User=root
 [Install]
 WantedBy=multi-user.target
