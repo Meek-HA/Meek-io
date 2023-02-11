@@ -80,11 +80,11 @@ mqtt:
   server: 'mqtt://localhost'
 serial:
   port: /dev/ttyACM0
-  
+
 advanced:
   network_key: GENERATE
-homeassistant: false
-permit_join: true
+  homeassistant: false
+  permit_join: true
 frontend:
   port: 9090
 EOF
