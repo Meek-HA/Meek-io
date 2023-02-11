@@ -47,6 +47,9 @@ mv /root/user /mnt/certificate/deploy/user
 Container="${ip4##*.}"
 sed -i -e "s/xxxContainerxxx/$Container/g" /etc/mosquitto/conf.d/default.conf
 
+######--Socat Zigbee2MQTT--################################################
+sed -i -e "s/xxxContainerxxx/$Container/g" /etc/systemd/system/z2m.service
+
 ######--Homebridge--################################################
 apt-get install homebridge -y
 #npm install -g --unsafe-perm homebridge homebridge-config-ui-x
