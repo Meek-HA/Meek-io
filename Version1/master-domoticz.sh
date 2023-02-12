@@ -254,6 +254,18 @@ cat << EOF > /root/MEEK/cron
 EOF
 crontab /root/MEEK/cron
 
+cat << EOF > /etc/systemd/system/admin.service
+[Unit]
+Description = Monitor admin directory for file manupilation
+[Service]
+ExecStart=/bin/bash /root/MEEK/monitor.sh
+RestartSec=10
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable admin.service
+
 ######--DOMOTICZ AUTODISCOVERY--################################################
 cd /home/root/domoticz/plugins
 git clone https://github.com/joba-1/Tasmoticz.git
@@ -271,10 +283,10 @@ touch /etc/systemd/system/z2m.service
 cat << EOF > /etc/systemd/system/z2m.service
 [Unit]
 Description=Virtual USB Device on port xxxContainerxxx05 for Zigbee2MQTT as USBdevice /dev/ttyACM0
-
 [Service]
 ExecStart=/usr/bin/socat pty,raw,echo=0,link=/dev/ttyACM0,mode=777 tcp-listen:xxxContainerxxx05,keepalive,nodelay,reuseaddr,keepidle=1,keepintvl=1,keepcnt=5,su=nobody
-
+Restart=on-failure
+RestartSec=2s
 [Install]
 WantedBy=multi-user.target
 EOF
