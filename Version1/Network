@@ -67,6 +67,7 @@ iface vmbr1 inet static
         post-up iptables -A OUTPUT -o \vmbr0 -s \185.252.233.184 -p tcp --dport 1880 -j ACCEPT
         post-up iptables -A OUTPUT -o \vmbr0 -s \185.252.233.184 -p tcp --dport 8581 -j ACCEPT
         post-up iptables -A OUTPUT -o \vmbr0 -s \185.252.233.184 -p tcp --sport 8006 -j ACCEPT
+        post-up iptables -A OUTPUT -o \vmbr0 -s \185.252.233.184 -p tcp --sport 9090 -j ACCEPT
         post-up iptables -A OUTPUT -o \vmbr0 -s \185.252.233.184 -p tcp --sport 10000:25000 -j ACCEPT
         post-up iptables -A PREROUTING -t nat -i \vmbr0 -p tcp --match multiport ! --dports 22,8006,10000:25000 -j DNAT --to \10.10.10.100
         post-up iptables -A PREROUTING -t nat -i \vmbr0 -p udp -j DNAT --to \10.10.10.100
