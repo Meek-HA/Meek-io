@@ -304,7 +304,7 @@ cat << EOF > /etc/systemd/system/z2m.service
 [Unit]
 Description=Virtual USB Device on port xxxContainerxxx05 for Zigbee2MQTT as USBdevice /dev/ttyACM0
 [Service]
-ExecStart=/usr/bin/socat pty,raw,echo=0,link=/dev/ttyACM0,mode=777 tcp-listen:xxxContainerxxx05,keepalive,nodelay,reuseaddr,keepidle=1,keepintvl=1,keepcnt=5,su=nobody
+ExecStart=/usr/bin/socat pty,raw,echo=0,link=/dev/ttyACM0,mode=777 tcp-listen:xxxContainerxxx05,keepalive,nodelay,reuseaddr,keepidle=1,keepintvl=1,keepcnt=100
 Restart=on-failure
 RestartSec=2s
 [Install]
