@@ -198,7 +198,7 @@ proxy_read_timeout 36000s;
 proxy_redirect off;
 }
 }
-#Proxywith Admin credentials
+#Node-RED with Admin credentials
 server {
 listen 1881;
 auth_basic "Admin Login";
@@ -217,6 +217,26 @@ proxy_set_header X-Forwarded-Proto $scheme;
 proxy_set_header X-Forwarded-Host $host;
 proxy_set_header X-Forwarded-Port $server_port;
 }
+}
+
+#Zigbee2MQTT Frontend with Admin credentials
+server {
+listen 9091;
+auth_basic "Admin Login";
+auth_basic_user_file /etc/nginx/.admin;
+location / {
+        proxy_pass http://127.0.0.1:9090/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+location /api {
+        proxy_pass         http://127.0.0.1:9090/api;
+        proxy_set_header Host $host;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        }
 }
 EOF
 
