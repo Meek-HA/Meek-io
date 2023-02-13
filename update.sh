@@ -126,26 +126,27 @@ if [ -f "$FILE" ];
         echo $(date -u) "domoticz-restart file deleted." >> /root/MEEK/log.txt
 fi
 
-#Check --zigbee2mqtt-start--
-FILE=/var/www/html/admin/command/zigbee2mqtt-start
+#Check --Zigbee2mqtt-start--
+FILE=/var/www/html/admin/command/Zigbee-Start
 if [ -f "$FILE" ];
         then
         touch /var/www/html/admin/command/updating
+        service z2m restart
         systemctl start zigbee2mqtt
         echo $(date -u) "zigbee2mqtt start." >> /root/MEEK/log.txt
-        rm /var/www/html/admin/command/zigbee2mqtt-start
+        rm /var/www/html/admin/command/Zigbee-Start
         rm /var/www/html/admin/command/updating
         echo $(date -u) "zigbee2mqtt-start file deleted." >> /root/MEEK/log.txt
 fi
 
-#Check --zigbee2mqtt-stop--
-FILE=/var/www/html/admin/command/zigbee2mqtt-stop
+#Check --Zigbee2mqtt-stop--
+FILE=/var/www/html/admin/command/Zigbee-Stop
 if [ -f "$FILE" ];
         then
         touch /var/www/html/admin/command/updating
         systemctl stop zigbee2mqtt
         echo $(date -u) "zigbee2mqtt stop." >> /root/MEEK/log.txt
-        rm /var/www/html/admin/command/zigbee2mqtt-stop
+        rm /var/www/html/admin/command/Zigbee-Stop
         rm /var/www/html/admin/command/updating
         echo $(date -u) "zigbee2mqtt-stop file deleted." >> /root/MEEK/log.txt
 fi
