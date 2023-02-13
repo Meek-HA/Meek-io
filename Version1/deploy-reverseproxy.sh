@@ -145,6 +145,31 @@ server_name xxxxxx;
 listen 80;
 return 404;
 }
+
+#Zigbee2MQTT port 9090
+server {
+listen [::]:9090;
+server_name xxxxxx;
+
+location / {
+        proxy_pass http://zzzzzz:9091/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+location /api {
+        proxy_pass         http://zzzzzz:9091/api;
+        proxy_set_header Host $host;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        }
+listen 9090 ssl;
+ssl_certificate /etc/letsencrypt/live/xxxxxx/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/xxxxxx/privkey.pem;
+include /etc/letsencrypt/options-ssl-nginx.conf;
+ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
 EOF
 
 sed -i -e "s/xxxxxx/$NAME/g" /root/new.conf
