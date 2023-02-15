@@ -4,7 +4,7 @@
 # 2) Enable container -nesting- & -NFS-
 # 3) apt-get install curl -y && curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/master-domoticz.sh --output domoticz.sh && chmod +rwx domoticz.sh && ./domoticz.sh
 # 4) Domoticz : Hardware - " MQTT Gateway 127.0.0.1 " , " Autodiscovery Tasmota " , " MEEK DD - P1 port 1886 " Dummy "
-#               Settings - " Location - MEEK-IO - Latitude : 51.49955 , Longtitude : 3.61480 " , " Enable Automatic Backup "
+#               Settings - " Location - MEEK-IO - Latitude : 51.49955 , Longtitude : 3.61480 " , " Enable Automatic Backup " , Security - Networks *.*.*.* , User change admin to Meek Meek
 
 echo Update System
 apt-get update -y
@@ -46,7 +46,7 @@ cat << EOF > /etc/systemd/system/domoticz.service
 [Service]
        User=root
        Group=root
-       ExecStart=/home/root/domoticz/domoticz -nowwwpwd -www 8080 -sslwww 443
+       ExecStart=/home/root/domoticz/domoticz -www 8080 -sslwww 443
        WorkingDirectory=/home/root/domoticz
        Restart=on-failure
        RestartSec=1m
