@@ -4,7 +4,9 @@
 # 2) Enable container -nesting- & -NFS-
 # 3) apt-get install curl -y && curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/master-domoticz.sh --output domoticz.sh && chmod +rwx domoticz.sh && ./domoticz.sh
 # 4) Domoticz : Hardware - " MQTT Gateway 127.0.0.1 " , " Autodiscovery Tasmota " , " MEEK DD - P1 port 1886 " Dummy "
-#               Settings - " Location - MEEK-IO - Latitude : 51.49955 , Longtitude : 3.61480 " , " Enable Automatic Backup " , Security - Networks *.*.*.* , User change admin to Meek Meek
+#               Settings - " Location - MEEK-IO - Latitude : 51.49955 , Longtitude : 3.61480 " , " Enable Automatic Backup "
+#               Security - Networks *.*.*.* , User change admin to Meek Meek
+# 5) HomeBridge : install : "edomoticz plugin","homebridge-gsh","homebridge-alexa"
 
 echo Update System
 apt-get update -y
@@ -293,6 +295,7 @@ git clone https://github.com/joba-1/Tasmoticz.git
 ######--HOMEBRIDGE--################################################
 curl -sSfL https://repo.homebridge.io/KEY.gpg | sudo gpg --dearmor | sudo tee /usr/share/keyrings/homebridge.gpg  > /dev/null
 echo "deb [signed-by=/usr/share/keyrings/homebridge.gpg] https://repo.homebridge.io stable main" | sudo tee /etc/apt/sources.list.d/homebridge.list > /dev/null
+apt-get install homebridge -y
 
 ######--PYTHON DEV.--################################################
 apt-get install python3-dev -y
