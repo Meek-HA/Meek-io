@@ -77,16 +77,34 @@ sh -c "echo -n "${NAME}:" >> /etc/nginx/.htpasswd"
 sh -c "openssl passwd -apr1 >> /etc/nginx/.htpasswd"
 
 echo -n "Enter username and password for admin account:"
-read NAME
-echo "Your username is:" $NAME
-rm -f /etc/nginx/.admin
-sh -c "echo -n "${NAME}:" >> /etc/nginx/.admin"
-sh -c "openssl passwd -apr1 >> /etc/nginx/.admin"
+echo 
+read -p "Username: " USERNAME
+read -s -p "Password: " PASSWORD; echo
+printf "${USERNAME}:$(openssl passwd -apr1 ${PASSWORD})\n" >> /etc/nginx/.admin
+
 
 echo -n "Enter username and password for Mosquitto:"
 read NAME
 echo "Your username is:" $NAME
 mosquitto_passwd -c /etc/mosquitto/passwd $NAME
+
+Echo Homebridge Admin Credentials update
+                rm /var/lib/homebridge/auth.json
+                echo .
+                echo ..
+                echo ...
+                curl -X 'POST' \
+                        'http://127.0.0.1:8581/api/setup-wizard/create-first-user' \
+                        -H 'accept: */*' \
+                        -H 'Content-Type: application/json' \
+                        -d '{
+                        "name": "Meek",
+                        "username": "'$USERNAME'",
+                        "admin": true,
+                        "password": "'$PASSWORD'"
+                        }'
+                hb-service restart
+
 
 ##Tasmote MQTT-DSMR to Domoticz-P1-Lan
 curl https://raw.githubusercontent.com/Meek-HA/Tasmota/main/Meek.json --output /root/MEEK/Meek.json
