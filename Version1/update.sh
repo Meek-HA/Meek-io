@@ -79,7 +79,7 @@ if [ -f "$FILE" ];
                         "name": "Meek",
                         "username": "'$changeusername'",
                         "admin": true,
-                        "password": "'$changeusername'"
+                        "password": "'$changepassword'"
                         }'
                 hb-service restart
                 rm /var/www/html/admin/command/cap
