@@ -66,7 +66,23 @@ if [ -f "$FILE" ];
               echo "$changepassword"
               sh -c "echo -n "$changeusername:" >> /etc/nginx/.htpasswd"
               sh -c "openssl passwd -apr1 $changepassword >> /etc/nginx/.htpasswd"
-              rm /var/www/html/admin/command/cap
+              #Homebridge Admin Credentials update
+                rm /var/lib/homebridge/auth.json
+                echo .
+                echo ..
+                echo ...
+                curl -X 'POST' \
+                        'http://127.0.0.1:8581/api/setup-wizard/create-first-user' \
+                        -H 'accept: */*' \
+                        -H 'Content-Type: application/json' \
+                        -d '{
+                        "name": "Meek",
+                        "username": "'$changeusername'",
+                        "admin": true,
+                        "password": "'$changeusername'"
+                        }'
+                hb-service restart
+                rm /var/www/html/admin/command/cap
               echo $(date -u) "Admin Credentiels are updated." >> /root/MEEK/log.txt
 fi
 
