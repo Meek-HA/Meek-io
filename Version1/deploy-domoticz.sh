@@ -51,16 +51,11 @@ sed -i -e "s/xxxContainerxxx/$Container/g" /etc/mosquitto/conf.d/default.conf
 sed -i -e "s/xxxContainerxxx/$Container/g" /etc/systemd/system/z2m.service
 
 ######--Homebridge--################################################
-apt-get install homebridge -y
-#npm install -g --unsafe-perm homebridge homebridge-config-ui-x
-#hb-service install --user homebridge
-echo Install HomeBridge edomoticz plugin
-npm install -g homebridge-edomoticz
-echo Install HomeBridge to Google Smart Home plugin
-npm install -g homebridge-gsh
-echo Install HomeBridge Alexa plugin
-npm install -g homebridge-alexa
-sed -i 's/config/config"\n      },\n    {\n     "name": "Domoticz",\n   "server": "127.0.0.1",\n        "port": "8080",\n       "roomid": 0,\n  "mqtt": 0,\n    "ssl": false,\n "dimFix": 0,\n  "platform": "eDomoticz/g' /var/lib/homebridge/config.json
+rm /var/lib/homebridge/config.json
+hb-service restart
+wait
+sleep 15
+sed -i 's/config/config"\n      },\n    {\n     "name": "Domoticz",\n   "server": "127.0.0.1",\n        "port": "8080",\n       "roomid": 0,\n  "mqtt": true,\n    "ssl": false,\n "dimFix": 0,\n  "platform": "eDomoticz/g' /var/lib/homebridge/config.json
 
 ######--Node-Red--################################################
 pm2 start /usr/bin/node-red -- -v
