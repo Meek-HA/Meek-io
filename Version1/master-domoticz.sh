@@ -265,7 +265,7 @@ done
 EOF
 
 chmod +x /root/MEEK/monitor.sh
-curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/update.sh --output /root/MEEK/update.sh && chmod +rwx /root/MEEK/update.sh
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/update.sh --output /root/MEEK/update.sh && chmod +rwx /root/MEEK/update.sh
 
 echo -n "Create cronjob"
 touch /root/MEEK/cron
