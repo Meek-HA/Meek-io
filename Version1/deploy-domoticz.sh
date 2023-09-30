@@ -117,5 +117,11 @@ curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d 
 sed -i -e "s/xxxContainerxxx/$Container/g" /root/MEEK/Meek.json
 sed -i -e "s/zzzDomainzzz/$NAME.$opt/g" /root/MEEK/Meek.json
 
+##Set Domoticz Databse Username and Password
+authuser=$(echo -ne "$NAME" | base64);
+authpass=$(echo -ne "$password" | base64);
+sqlite3 /home/root/domoticz/domoticz.db 'DELETE FROM Users WHERE ROWID=1'
+sqlite3 /home/root/domoticz/domoticz.db 'INSERT INTO Users VALUES("1","1","'$authuser'","'$authpass'","","2","127","1");'
+
 
 echo -n "In container -- Reverse Proxy --, execute  ./cert.sh  !"
