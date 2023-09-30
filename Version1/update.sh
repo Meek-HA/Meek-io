@@ -59,13 +59,13 @@ fi
 FILE=/var/www/html/admin/command/cap
 if [ -f "$FILE" ];
          then
-              rm /etc/nginx/.htpasswd
+              rm /etc/nginx/.admin
               changeusername="$(head -1 /var/www/html/admin/command/cap)"
               echo "$changeusername"
               changepassword="$(tail -1 /var/www/html/admin/command/cap)"
               echo "$changepassword"
-              sh -c "echo -n "$changeusername:" >> /etc/nginx/.htpasswd"
-              sh -c "openssl passwd -apr1 $changepassword >> /etc/nginx/.htpasswd"
+              sh -c "echo -n "$changeusername:" >> /etc/nginx/.admin"
+              sh -c "openssl passwd -apr1 $changepassword >> /etc/nginx/.admin"
               #Homebridge Admin Credentials update
                 rm /var/lib/homebridge/auth.json
                 echo .
@@ -90,13 +90,17 @@ fi
 FILE=/var/www/html/admin/command/cup
 if [ -f "$FILE" ];
         then
-        rm /etc/nginx/.admin
+        rm /etc/nginx/.htpasswd
         changeusername="$(head -1 /var/www/html/admin/command/cup)"
         echo "$changeusername"
         changepassword="$(tail -1 /var/www/html/admin/command/cup)"
         echo "$changepassword"
-        sh -c "echo -n "$changeusername:" >> /etc/nginx/.admin"
-        sh -c "openssl passwd -apr1 $changepassword >> /etc/nginx/.admin"
+        sh -c "echo -n "$changeusername:" >> /etc/nginx/.htpasswd"
+        sh -c "openssl passwd -apr1 $changepassword >> /etc/nginx/.htpasswd"
+                uthuser=$(echo -ne "$changeusername" | base64);
+                authpass=$(echo -ne "$changepassword" | base64);
+                sqlite3 /home/root/domoticz/domoticz.db 'DELETE FROM Users WHERE ROWID=1'
+                sqlite3 /home/root/domoticz/domoticz.db 'INSERT INTO Users VALUES("1","1","'$authuser'","'$authpass'","","2","127","1");'
         rm /var/www/html/admin/command/cup
         echo $(date -u) "User Credentiels are updated." >> /root/MEEK/log.txt
 fi
