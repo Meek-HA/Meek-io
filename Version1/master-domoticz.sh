@@ -315,3 +315,6 @@ RestartSec=2s
 [Install]
 WantedBy=multi-user.target
 EOF
+
+######--DB Manipulation--################################################
+apt-get install sqlite3 -y
