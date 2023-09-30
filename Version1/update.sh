@@ -97,7 +97,7 @@ if [ -f "$FILE" ];
         echo "$changepassword"
         sh -c "echo -n "$changeusername:" >> /etc/nginx/.htpasswd"
         sh -c "openssl passwd -apr1 $changepassword >> /etc/nginx/.htpasswd"
-                uthuser=$(echo -ne "$changeusername" | base64);
+                authuser=$(echo -ne "$changeusername" | base64);
                 authpass=$(echo -ne "$changepassword" | base64);
                 sqlite3 /home/root/domoticz/domoticz.db 'DELETE FROM Users WHERE ROWID=1'
                 sqlite3 /home/root/domoticz/domoticz.db 'INSERT INTO Users VALUES("1","1","'$authuser'","'$authpass'","","2","127","1");'
