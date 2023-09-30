@@ -67,9 +67,11 @@ pm2 start node-red
 echo -n "Enter username and password for user account:"
 read NAME
 echo "Your username is:" $NAME
+read -s -p "Password: " PASSW; echo
 rm -f /etc/nginx/.htpasswd
-sh -c "echo -n "${NAME}:" >> /etc/nginx/.htpasswd"
-sh -c "openssl passwd -apr1 >> /etc/nginx/.htpasswd"
+#sh -c "echo -n "${NAME}:" >> /etc/nginx/.htpasswd"
+#sh -c "openssl passwd -apr1 >> /etc/nginx/.htpasswd"
+printf "${NAME}:$(openssl passwd -apr1 ${PASSW})\n" >> /etc/nginx/.htpasswd"
 
 echo -n "Enter username and password for admin account:"
 echo 
@@ -119,7 +121,7 @@ sed -i -e "s/zzzDomainzzz/$NAME.$opt/g" /root/MEEK/Meek.json
 
 ##Set Domoticz Databse Username and Password
 authuser=$(echo -ne "$NAME" | base64);
-authpass=$(echo -ne "$password" | base64);
+authpass=$(echo -ne "$PASSW" | base64);
 sqlite3 /home/root/domoticz/domoticz.db 'DELETE FROM Users WHERE ROWID=1'
 sqlite3 /home/root/domoticz/domoticz.db 'INSERT INTO Users VALUES("1","1","'$authuser'","'$authpass'","","2","127","1");'
 
