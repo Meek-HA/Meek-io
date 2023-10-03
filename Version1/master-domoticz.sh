@@ -41,7 +41,7 @@ bash -c "$(curl -sSfL https://install.domoticz.com)"
 rm libssl1.1_1.1.1f-1ubuntu2.17_amd64.deb
 #rm domo.sh
 
-echo Domoticz Service without passwword
+echo Domoticz Service
 touch /etc/systemd/system/domoticz.service
 cat << EOF > /etc/systemd/system/domoticz.service
 [Unit]
@@ -146,24 +146,6 @@ cat <<'EOF'> /etc/nginx/sites-enabled/MEEK.conf
 #Authorization procedure
 server {
 listen       81;
-#Domoticz forward
-location / {
-auth_basic "User Login";
-auth_basic_user_file /etc/nginx/.htpasswd;
-proxy_set_header Upgrade $http_upgrade;
-proxy_set_header Connection "upgrade";
-proxy_pass_header Authorization;
-proxy_pass http://127.0.0.1:8080;
-proxy_set_header Host $host;
-proxy_set_header X-Real-IP $remote_addr;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_http_version 1.1;
-proxy_set_header Connection "";
-proxy_buffering off;
-client_max_body_size 0;
-proxy_read_timeout 36000s;
-proxy_redirect off;
-}
 #Dashticz subpath forwarding
 location /dashticz {
 auth_basic "User Login";
