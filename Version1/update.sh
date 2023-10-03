@@ -91,17 +91,15 @@ FILE=/var/www/html/admin/command/cup
 if [ -f "$FILE" ];
         then
         rm /etc/nginx/.htpasswd
-        changeusername="$(head -1 /var/www/html/admin/command/cup)"
-        echo "$changeusername"
-        changepassword="$(tail -1 /var/www/html/admin/command/cup)"
-        echo "$changepassword"
-        sh -c "echo -n "$changeusername:" >> /etc/nginx/.htpasswd"
-        sh -c "openssl passwd -apr1 $changepassword >> /etc/nginx/.htpasswd"
-                authuser=$(echo -ne "$changeusername" | base64);
-                authpass=$(echo -ne "$changepassword" | base64);
-                sqlite3 /home/root/domoticz/domoticz.db 'DELETE FROM Users WHERE ROWID=1'
-                sqlite3 /home/root/domoticz/domoticz.db 'INSERT INTO Users VALUES("1","1","'$authuser'","'$authpass'","","2","127","1");'
+        NAMEU="$(head -1 /var/www/html/admin/command/cup)"
+        PASSU="$(tail -1 /var/www/html/admin/command/cup)"
+        printf "${NAMEU}:$(openssl passwd -apr1 ${PASSU})\n" >> /etc/nginx/.htpasswd
+        authuser=$(echo -ne "$NAMEU" | base64);
+        authpass=$(echo -ne "$PASSU" | md5sum | awk '{print $1}');
+        sqlite3 /home/root/domoticz/domoticz.db 'DELETE FROM Users WHERE ROWID=1'
+        sqlite3 /home/root/domoticz/domoticz.db 'INSERT INTO Users VALUES("1","1","'$authuser'","'$authpass'","","2","127","1");'
         rm /var/www/html/admin/command/cup
+        service domoticz restart
         echo $(date -u) "User Credentiels are updated." >> /root/MEEK/log.txt
 fi
 
