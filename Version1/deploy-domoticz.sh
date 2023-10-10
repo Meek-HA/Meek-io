@@ -70,6 +70,12 @@ echo "Your username is:" $NAMEU
 read -s -p "Password: " PASSU; echo
 rm -f /etc/nginx/.htpasswd
 printf "${NAMEU}:$(openssl passwd -apr1 ${PASSU})\n" >> /etc/nginx/.htpasswd
+##Set Domoticz Databse Username and Password
+        authuser=$(echo -ne "$NAMEU" | base64);
+        authpass=$(echo -ne "$PASSU" | md5sum | awk '{print $1}');
+        sqlite3 /home/root/domoticz/domoticz.db 'DELETE FROM Users WHERE ROWID=1'
+        sqlite3 /home/root/domoticz/domoticz.db 'INSERT INTO Users VALUES("1","1","'$authuser'","'$authpass'","","2","127","1");'
+
 
 echo -n "Enter username and password for admin account:"
 echo 
@@ -116,12 +122,5 @@ echo ..........
 curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d @/root/MEEK/Meek.json
 sed -i -e "s/xxxContainerxxx/$Container/g" /root/MEEK/Meek.json
 sed -i -e "s/zzzDomainzzz/$NAME.$opt/g" /root/MEEK/Meek.json
-
-##Set Domoticz Databse Username and Password
-authuser=$(echo -ne "$NAMEU" | base64);
-authpass=$(echo -ne "$PASSU" | base64);
-sqlite3 /home/root/domoticz/domoticz.db 'DELETE FROM Users WHERE ROWID=1'
-sqlite3 /home/root/domoticz/domoticz.db 'INSERT INTO Users VALUES("1","1","'$authuser'","'$authpass'","","2","127","1");'
-
 
 echo -n "In container -- Reverse Proxy --, execute  ./cert.sh  !"
