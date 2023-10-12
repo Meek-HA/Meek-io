@@ -82,6 +82,11 @@ if [ -f "$FILE" ];
                         "password": "'$changepassword'"
                         }'
                 hb-service restart
+                #Node-Red Admin Credentials update
+                nodepass=$(echo $(node -e "console.log(require('bcryptjs').hashSync(process.argv[1], 8));" $changepassword))
+                sed -i '/password:/c\password: "'${nodepass}'",' /root/.node-red/settings.js
+                sed -i '/username:/c\username: "'${changeusername}'",' /root/.node-red/settings.js
+                pm2 restart node-red
                 rm /var/www/html/admin/command/cap
               echo $(date -u) "Admin Credentiels are updated." >> /root/MEEK/log.txt
 fi
