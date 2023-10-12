@@ -82,6 +82,11 @@ echo
 read -p "Username: " USERNAME
 read -s -p "Password: " PASSWORD; echo
 printf "${USERNAME}:$(openssl passwd -apr1 ${PASSWORD})\n" >> /etc/nginx/.admin
+**Admin Node-Red
+nodepass=$(echo $(node -e "console.log(require('bcryptjs').hashSync(process.argv[1], 8));" $PASSWORD))
+sed -i '/password:/c\password: "'${nodepass}'",' /root/.node-red/settings.js
+sed -i '/username:/c\username: "'${USERNAME}'",' /root/.node-red/settings.js
+pm2 restart node-red
 
 
 echo -n "Enter username and password for Mosquitto:"
