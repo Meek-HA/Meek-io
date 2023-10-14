@@ -59,13 +59,14 @@ fi
 FILE=/var/www/html/admin/command/cap
 if [ -f "$FILE" ];
          then
-              rm /etc/nginx/.admin
-              changeusername="$(head -1 /var/www/html/admin/command/cap)"
-              echo "$changeusername"
-              changepassword="$(tail -1 /var/www/html/admin/command/cap)"
-              echo "$changepassword"
-              sh -c "echo -n "$changeusername:" >> /etc/nginx/.admin"
-              sh -c "openssl passwd -apr1 $changepassword >> /etc/nginx/.admin"
+                rm /etc/nginx/.admin
+                touch /etc/nginx/.admin
+                sh -c "echo -n ":" >> /etc/nginx/.admin"
+                changeusername="$(head -1 /var/www/html/admin/command/cap)"
+                changepassword="$(tail -1 /var/www/html/admin/command/cap)"
+                rm /var/www/html/admin/command/cap
+                hashpass=$(echo $(openssl passwd -apr1 $changepassword))
+                sed -i "/:/c\\$changeusername:$hashpass" /etc/nginx/.admin
               #Homebridge Admin Credentials update
                 rm /var/lib/homebridge/auth.json
                 echo .
@@ -82,12 +83,11 @@ if [ -f "$FILE" ];
                         "password": "'$changepassword'"
                         }'
                 hb-service restart
-                #Node-Red Admin Credentials update
+               #Node-Red Admin Credentials update
                 nodepass=$(echo $(node -e "console.log(require('bcryptjs').hashSync(process.argv[1], 8));" $changepassword))
                 sed -i '/password:/c\password: "'${nodepass}'",' /root/.node-red/settings.js
                 sed -i '/username:/c\username: "'${changeusername}'",' /root/.node-red/settings.js
                 pm2 restart node-red
-                rm /var/www/html/admin/command/cap
               echo $(date -u) "Admin Credentiels are updated." >> /root/MEEK/log.txt
 fi
 
