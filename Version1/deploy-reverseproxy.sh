@@ -99,7 +99,7 @@ add_header  Content-Type  text/plain;
 return 200 "User-agent: *\nDisallow: /\n";
 }
 location / {
-proxy_pass http://zzzzzz:1881;
+proxy_pass http://zzzzzz:1880;
 proxy_http_version  1.1;
 proxy_cache_bypass  $http_upgrade;
 proxy_set_header Upgrade $http_upgrade;
