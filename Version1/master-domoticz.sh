@@ -87,6 +87,7 @@ pm2 start /usr/bin/node-red -- -v
 pm2 save
 pm2 startup systemd
 pm2 start node-red
+npm install bcryptjs
 
 ######--ZIGBEE2MQTT--################################################
 echo Install/Setup Zigbee2MQTT
