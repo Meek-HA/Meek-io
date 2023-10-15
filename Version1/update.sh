@@ -112,9 +112,14 @@ fi
 FILE=/var/www/html/admin/command/cmqtp
 if [ -f "$FILE" ];
         then
-        mosquitto_passwd -U /var/www/html/admin/command/cmqtp
         rm /etc/mosquitto/passwd
-        mv /var/www/html/admin/command/cmqtp /etc/mosquitto/passwd
+        touch /etc/mosquitto/passwd
+        sh -c "echo -n ":" >> /etc/mosquitto/passwd"
+        NAMEM="$(head -1 /var/www/html/admin/command/cmqtp)"
+        PASSM="$(tail -1 /var/www/html/admin/command/cmqtp)"
+        rm /var/www/html/admin/command/cmqtp
+        sed -i "/:/c\\$NAMEM:$PASSM" /etc/mosquitto/passwd
+        mosquitto_passwd -U /etc/mosquitto/passwd
         service mosquitto restart
         echo $(date -u) "MQTT Credentials are updated." >> /root/MEEK/log.txt
 fi
