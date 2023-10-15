@@ -173,3 +173,15 @@ if [ -f "$FILE" ];
         rm /var/www/html/admin/command/updating
         echo $(date -u) "zigbee2mqtt-stop file deleted." >> /root/MEEK/log.txt
 fi
+
+#Check --System-Update--
+FILE=/var/www/html/admin/command/System-Update
+if [ -f "$FILE" ];
+        then
+        touch /var/www/html/admin/command/updating
+        curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/update.sh --output /root/MEEK/update.sh
+        echo $(date -u) "System-Update start." >> /root/MEEK/log.txt
+        rm /var/www/html/admin/command/System-Update
+        rm /var/www/html/admin/command/updating
+        echo $(date -u) "System-Update completed." >> /root/MEEK/log.txt
+fi
