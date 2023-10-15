@@ -7,6 +7,8 @@
 #               Settings - " Location - MEEK-IO - Latitude : 51.49955 , Longtitude : 3.61480 " , " Enable Automatic Backup "
 #               Security - Networks *.*.*.* , User change admin to Meek Meek
 # 5) HomeBridge : install : "edomoticz plugin","homebridge-gsh","homebridge-alexa"
+# 6) nano .node-red/settings.js
+#       uncomments lines from " adminAuth: { "
 
 echo Update System
 apt-get update -y
