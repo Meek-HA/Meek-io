@@ -484,21 +484,37 @@ function displayContents() {
 }
 
 </script>
-<form action="" method="post">
-    <button name="click" class="Button ButtonA">Show MQTT Credentials</button>
-</form>
 
-    <?php
-    if(isset($_POST['click']))
-    {
-        $filename = "test.txt";
-        $before_editing = file_get_contents($filename);
-
-    ?>
+<details>
+<summary>Show/Hide MQTT Login data</summary>
+<font color="red">
 <?php
-        echo "MQTT Username & Password : " . $before_editing . "<br>";
-    }
-    ?>
+$file = fopen("mqtt","r");
+while(! feof($file))
+  {
+echo"Username : ";
+echo fgets($file). "<br />";
+echo"Password : ";
+echo fgets($file). "<br />";
+break;
+  }
+fclose($file);
+?>
+
+<?php
+$file = fopen("port","r");
+while(! feof($file))
+  {
+echo fgets($file). "<br />";
+echo fgets($file). "<br />";
+break;
+  }
+fclose($file);
+?>
+</details>
+
+
+    
 <div id="main">
     </div>
 </div>
