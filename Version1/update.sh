@@ -117,7 +117,7 @@ if [ -f "$FILE" ];
         sh -c "echo -n ":" >> /etc/mosquitto/passwd"
         NAMEM="$(head -1 /var/www/html/admin/command/cmqtp)"
         PASSM="$(tail -1 /var/www/html/admin/command/cmqtp)"
-        rm /var/www/html/admin/command/cmqtp
+        mv /var/www/html/admin/command/cmqtp /var/www/html/admin/mqtt
         sed -i "/:/c\\$NAMEM:$PASSM" /etc/mosquitto/passwd
         mosquitto_passwd -U /etc/mosquitto/passwd
         service mosquitto restart
