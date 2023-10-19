@@ -128,4 +128,8 @@ curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d 
 sed -i -e "s/xxxContainerxxx/$Container/g" /root/MEEK/Meek.json
 sed -i -e "s/zzzDomainzzz/$NAME.$opt/g" /root/MEEK/Meek.json
 
+##Admin MQTT port details
+echo MQTT-Port : $(ip -o addr show dev "eth0" | awk '$3 == "inet" {print $4}' | sed -r 's!/.*!!; s!.*\.!!')01 >> /var/www/html/admin/port
+echo MQTTS-Port : $(ip -o addr show dev "eth0" | awk '$3 == "inet" {print $4}' | sed -r 's!/.*!!; s!.*\.!!')02 >> /var/www/html/admin/port
+
 echo -n "In container -- Reverse Proxy --, execute  ./cert.sh  !"
