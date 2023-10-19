@@ -186,6 +186,11 @@ if [ -f "$FILE" ];
         {
         touch /var/www/html/admin/command/updating
         curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/update.sh --output /root/MEEK/update.sh && chmod +rwx /root/MEEK/update.sh
+        curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/admin/index.php --output /var/www/html/admin/index.php
+        curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/admin/capw.php --output /var/www/html/admin/capw.php
+        curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/admin/cmqtpw.php --output /var/www/html/admin/cmqtpw.php
+        curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/admin/cupw.php --output /var/www/html/admin/cupw.php
+        chown -R www-data:www-data /var/www/html/admin
         echo $(date -u) "System-Update start." >> /root/MEEK/log.txt
         rm /var/www/html/admin/command/System-Update
         rm /var/www/html/admin/command/updating
