@@ -47,6 +47,12 @@ mv /root/user /mnt/certificate/deploy/user
 Container="${ip4##*.}"
 sed -i -e "s/xxxContainerxxx/$Container/g" /etc/mosquitto/conf.d/default.conf
 
+######--Node-Red--################################################
+pm2 start /usr/bin/node-red -- -v
+pm2 save
+pm2 startup systemd
+pm2 start node-red
+
 ######--Socat Zigbee2MQTT--################################################
 sed -i -e "s/xxxContainerxxx/$Container/g" /etc/systemd/system/z2m.service
 
@@ -57,11 +63,22 @@ wait
 sleep 15
 sed -i 's/config/config"\n      },\n    {\n     "name": "Domoticz",\n   "server": "127.0.0.1",\n        "port": "8080",\n       "roomid": 0,\n  "mqtt": true,\n    "ssl": false,\n "dimFix": 0,\n  "platform": "eDomoticz/g' /var/lib/homebridge/config.json
 
-######--Node-Red--################################################
-pm2 start /usr/bin/node-red -- -v
-pm2 save
-pm2 startup systemd
-pm2 start node-red
+######--Tasmote MQTT-DSMR to Domoticz-P1-Lan--################################################
+curl https://raw.githubusercontent.com/Meek-HA/Tasmota/main/Meek.json --output /root/MEEK/Meek.json
+echo .
+echo ..
+echo ...
+echo ....
+echo .....
+echo ......
+echo .......
+echo ........
+echo .........
+echo ..........
+sed -i -e "s/xxxContainerxxx/$Container/g" /root/MEEK/Meek.json
+sed -i -e "s/zzzDomainzzz/$NAME.$opt/g" /root/MEEK/Meek.json
+curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d @/root/MEEK/Meek.json
+
 
 ######--Username & PasswordD Generation--################################################
 echo -n "Enter username and password for user account:"
@@ -112,24 +129,7 @@ echo Homebridge Admin Credentials update
                 hb-service restart
 
 
-##Tasmote MQTT-DSMR to Domoticz-P1-Lan
-curl https://raw.githubusercontent.com/Meek-HA/Tasmota/main/Meek.json --output /root/MEEK/Meek.json
-echo .
-echo ..
-echo ...
-echo ....
-echo .....
-echo ......
-echo .......
-echo ........
-echo .........
-echo ..........
-sed -i -e "s/xxxContainerxxx/$Container/g" /root/MEEK/Meek.json
-sed -i -e "s/zzzDomainzzz/$NAME.$opt/g" /root/MEEK/Meek.json
-curl -X POST http://localhost:1880/flows -H 'content-type: application/json' -d @/root/MEEK/Meek.json
-
-
-##Admin MQTT port details
+##########----Admin MQTT port details
 echo MQTT-Port : $(ip -o addr show dev "eth0" | awk '$3 == "inet" {print $4}' | sed -r 's!/.*!!; s!.*\.!!')01 >> /var/www/html/admin/port
 echo MQTTS-Port : $(ip -o addr show dev "eth0" | awk '$3 == "inet" {print $4}' | sed -r 's!/.*!!; s!.*\.!!')02 >> /var/www/html/admin/port
 
