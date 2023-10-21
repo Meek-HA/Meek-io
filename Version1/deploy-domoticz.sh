@@ -132,4 +132,4 @@ sed -i -e "s/zzzDomainzzz/$NAME.$opt/g" /root/MEEK/Meek.json
 echo MQTT-Port : $(ip -o addr show dev "eth0" | awk '$3 == "inet" {print $4}' | sed -r 's!/.*!!; s!.*\.!!')01 >> /var/www/html/admin/port
 echo MQTTS-Port : $(ip -o addr show dev "eth0" | awk '$3 == "inet" {print $4}' | sed -r 's!/.*!!; s!.*\.!!')02 >> /var/www/html/admin/port
 
-echo -n "In container -- Reverse Proxy --, execute  ./cert.sh  !"
+echo -n "In container -- Reverse Proxy --, execute ./deploy-reverseproxy.sh and then ./cert.sh  !"
