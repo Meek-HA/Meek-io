@@ -94,7 +94,7 @@ read NAME
 echo "Your username is:" $NAME
 mosquitto_passwd -c /etc/mosquitto/passwd $NAME
 
-Echo Homebridge Admin Credentials update
+echo Homebridge Admin Credentials update
                 rm /var/lib/homebridge/auth.json
                 echo .
                 echo ..
