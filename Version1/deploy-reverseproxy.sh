@@ -56,6 +56,9 @@ return 301 https://xxxxxx:1880;
 location /homebridge {
 return 301 https://xxxxxx:8581;
 }
+location /zigbee {
+return 301 https://xxxxxx:9090;
+}
 #Dashticz subpath forwarding
 location /dashticz {
 proxy_pass_header Authorization;
