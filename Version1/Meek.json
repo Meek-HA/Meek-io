@@ -1,0 +1,321 @@
+[
+    {
+        "id": "d6a10370.54618",
+        "type": "tab",
+        "label": "Meek",
+        "disabled": false,
+        "info": "!!Do Not Delete or Change!!\n\nInput Meek DD:\nThis flow will check the status of the Meek-DD device.\nDepending on the status(Online/Offline), it will start/stop DSMR/P1 Module Service.\n\nZigbee Status:\nThis flow will check the status of the Meek-Zigbee-Gateway.\nDepending on the status(Online/Offline), it will start/stop Zigbee2MQTT Service.",
+        "env": []
+    },
+    {
+        "id": "5296e20d6c830e47",
+        "type": "exec",
+        "z": "d6a10370.54618",
+        "command": "touch /var/www/html/admin/command/Zigbee-Start",
+        "addpay": "",
+        "append": "",
+        "useSpawn": "false",
+        "timer": "",
+        "winHide": true,
+        "oldrc": false,
+        "name": "Start ZIgbee2MQTT",
+        "x": 480,
+        "y": 60,
+        "wires": [
+            [
+                "e4848e1d4ce0315d"
+            ],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "fb5218cda6f54d71",
+        "type": "mqtt in",
+        "z": "d6a10370.54618",
+        "name": "Zigbee Status",
+        "topic": "tele/Meek_Zigbee/LWT",
+        "qos": "2",
+        "datatype": "utf8",
+        "broker": "8ce31000.7fac3",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 110,
+        "y": 80,
+        "wires": [
+            [
+                "6e33f6483024b4ed"
+            ]
+        ]
+    },
+    {
+        "id": "6e33f6483024b4ed",
+        "type": "switch",
+        "z": "d6a10370.54618",
+        "name": "Online/Offline",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "Online",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "Offline",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 280,
+        "y": 80,
+        "wires": [
+            [
+                "5296e20d6c830e47"
+            ],
+            [
+                "a8be88589ea4376d"
+            ]
+        ]
+    },
+    {
+        "id": "a8be88589ea4376d",
+        "type": "exec",
+        "z": "d6a10370.54618",
+        "command": "touch /var/www/html/admin/command/Zigbee-Stop",
+        "addpay": "",
+        "append": "",
+        "useSpawn": "false",
+        "timer": "",
+        "winHide": false,
+        "oldrc": false,
+        "name": "Stop Zigbee2MQTT",
+        "x": 470,
+        "y": 100,
+        "wires": [
+            [],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "992980091553a7e1",
+        "type": "mqtt out",
+        "z": "d6a10370.54618",
+        "name": "TCPStart",
+        "topic": "cmnd/Meek_Zigbee/tcpconnect",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "8ce31000.7fac3",
+        "x": 840,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "e4848e1d4ce0315d",
+        "type": "change",
+        "z": "d6a10370.54618",
+        "name": "Payload",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "xxxContainerxxx05,zzzDomainzzz",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 680,
+        "y": 60,
+        "wires": [
+            [
+                "992980091553a7e1"
+            ]
+        ]
+    },
+    {
+        "id": "448242fd646b9c73",
+        "type": "exec",
+        "z": "d6a10370.54618",
+        "command": "service dsmr start",
+        "addpay": "",
+        "append": "",
+        "useSpawn": "false",
+        "timer": "",
+        "winHide": true,
+        "oldrc": false,
+        "name": "Start DSMR Read",
+        "x": 490,
+        "y": 220,
+        "wires": [
+            [
+                "97baa9ac1eabc80e"
+            ],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "4dde6c94519e9001",
+        "type": "mqtt in",
+        "z": "d6a10370.54618",
+        "name": "Meek DD Status",
+        "topic": "tele/Meek_DD32/LWT",
+        "qos": "2",
+        "datatype": "utf8",
+        "broker": "8ce31000.7fac3",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 120,
+        "y": 240,
+        "wires": [
+            [
+                "029b5b188e298bec"
+            ]
+        ]
+    },
+    {
+        "id": "029b5b188e298bec",
+        "type": "switch",
+        "z": "d6a10370.54618",
+        "name": "Online/Offline",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "Online",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "Offline",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 300,
+        "y": 240,
+        "wires": [
+            [
+                "448242fd646b9c73"
+            ],
+            [
+                "1f7a722166dacdd1"
+            ]
+        ]
+    },
+    {
+        "id": "1f7a722166dacdd1",
+        "type": "exec",
+        "z": "d6a10370.54618",
+        "command": "service dsmr stop",
+        "addpay": "",
+        "append": "",
+        "useSpawn": "false",
+        "timer": "",
+        "winHide": false,
+        "oldrc": false,
+        "name": "Stop DSMR Read",
+        "x": 490,
+        "y": 260,
+        "wires": [
+            [],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "3429f98af3895f1c",
+        "type": "mqtt out",
+        "z": "d6a10370.54618",
+        "name": "TCPStart",
+        "topic": "cmnd/Meek_DD32/tcpconnect",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "8ce31000.7fac3",
+        "x": 860,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "97baa9ac1eabc80e",
+        "type": "change",
+        "z": "d6a10370.54618",
+        "name": "Payload",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "xxxContainerxxx06,zzzDomainzzz",
+                "tot": "str"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 700,
+        "y": 220,
+        "wires": [
+            [
+                "3429f98af3895f1c"
+            ]
+        ]
+    },
+    {
+        "id": "8ce31000.7fac3",
+        "type": "mqtt-broker",
+        "name": "Meek-IO Mosquitto",
+        "broker": "127.0.0.1",
+        "port": "1883",
+        "tls": "",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "compatmode": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    }
+]
