@@ -55,6 +55,7 @@ pm2 start node-red
 
 ######--Socat Zigbee2MQTT--################################################
 sed -i -e "s/xxxContainerxxx/$Container/g" /etc/systemd/system/z2m.service
+sed -i -e "s/xxxContainerxxx/$Container/g" /etc/systemd/system/dsmr.service
 
 ######--Homebridge--################################################
 rm /var/lib/homebridge/config.json
