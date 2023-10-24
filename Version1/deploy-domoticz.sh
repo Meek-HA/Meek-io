@@ -113,7 +113,7 @@ echo Homebridge Admin Credentials update
                 hb-service restart
 
 ######--Tasmote MQTT-DSMR to Domoticz-P1-Lan--################################################
-curl https://raw.githubusercontent.com/Meek-HA/Tasmota/main/Meek.json --output /root/MEEK/Meek.json
+curl https://github.com/Meek-HA/Meek-io/blob/master/Version1/Meek.json --output /root/MEEK/Meek.json
 echo .
 echo ..
 echo ...
