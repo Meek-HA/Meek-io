@@ -3,7 +3,7 @@
 # 1) Create container in unpriviliged mode , MAX MBPS 3
 # 2) Enable container -nesting- & -NFS-
 # 3) apt-get install curl -y && curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/master-domoticz.sh --output domoticz.sh && chmod +rwx domoticz.sh && ./domoticz.sh
-# 4) Domoticz : Hardware - " MQTT Gateway 127.0.0.1 " , " Autodiscovery Tasmota " , " MEEK DD - P1 port 1886 " Dummy "
+# 4) Domoticz : Hardware - " MQTT Gateway 127.0.0.1 " , " Autodiscovery Tasmota " , " Meek DD-P1 Smart Meter USB /dev/ttyUSB0 " , " Dummy " , " Disable Auto Update "
 #               Settings - " Location - MEEK-IO - Latitude : 51.49955 , Longtitude : 3.61480 " , " Enable Automatic Backup "
 #               Security - Networks *.*.*.* , User change admin to Meek Meek
 # 5) HomeBridge : install : "edomoticz plugin","homebridge-gsh","homebridge-alexa"
@@ -281,6 +281,19 @@ RestartSec=2s
 [Install]
 WantedBy=multi-user.target
 EOF
+
+touch /etc/systemd/system/dsmr.service
+cat << EOF > /etc/systemd/system/dsmr.service
+[Unit]
+Description=Virtual USB Device on port xxxContainerxxx06 for Meek DD DSMR/P1-function as USBdevice /dev/ttyUSB0
+[Service]
+ExecStart=/usr/bin/socat pty,raw,echo=0,link=/dev/ttyUSB0,mode=777 tcp-listen:xxxContainerxxx06,keepalive,nodelay,reuseaddr,keepidle=1,keepintvl=1,keepcnt=100
+Restart=on-failure
+RestartSec=2s
+[Install]
+WantedBy=multi-user.target
+EOF
+
 
 ######--DB Manipulation--################################################
 apt-get install sqlite3 -y
