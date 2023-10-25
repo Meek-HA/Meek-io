@@ -50,3 +50,37 @@ cat << EOF > /root/MEEK/cron
 @reboot /root/MEEK/new-user.sh
 EOF
 crontab /root/MEEK/cron
+
+######--Control.mymeek.org--################################################
+cat <<'EOF'> /etc/nginx/sites-enabled/control.conf
+server {
+        listen 80;
+        server_name control.mymeek.org;
+        return 301 https://control.mymeek.org$request_uri;
+}
+
+server {
+        listen 443 ssl;
+        server_name control.mymeek.org;
+        #ssl on;
+        location / {
+        proxy_pass https://control.mymeek.org:8006$request_uri;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        }
+}
+EOF
+
+nginx -s reload
+
+echo .
+echo ..
+echo ...
+echo ....
+echo .....
+echo ......
+echo .......
+echo ........
+echo .........
+echo ..........
+certbot run -n --nginx --agree-tos -d control.mymeek.org -m  cert@mymeek.org --redirect
