@@ -104,6 +104,7 @@ echo $PASSMQT >> /root/MEEK/cmqtp
 mv /root/MEEK/cmqtp /var/www/html/admin/command/cmqtp
 
 ######--Tasmote MQTT-DSMR to Domoticz-P1-Lan--################################################
+pm2 restart node-red
 curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/Meek.json --output /root/MEEK/Meek.json
 echo .
 echo ..
@@ -118,6 +119,7 @@ echo ..........
 sed -i -e "s/xxxContainerxxx/$Container/g" /root/MEEK/Meek.json
 sed -i -e "s/zzzDomainzzz/$NAME.$opt/g" /root/MEEK/Meek.json
 rm /root/MEEK/NRA
+sleep 10
 echo $(curl http://localhost:1880/auth/token --data 'client_id=node-red-admin&grant_type=password&scope=*&username='${NAMEA}'&password='$PASSA'') >> /root/MEEK/NRA
 sed -e 's+{"access_token":"++g' -i /root/MEEK/NRA
 sed -e 's+",".*++g' -i /root/MEEK/NRA
