@@ -118,7 +118,7 @@ echo ..........
 sed -i -e "s/xxxContainerxxx/$Container/g" /root/MEEK/Meek.json
 sed -i -e "s/zzzDomainzzz/$NAME.$opt/g" /root/MEEK/Meek.json
 rm /root/MEEK/NRA
-echo $(curl http://localhost:1880/auth/token --data 'client_id=node-red-admin&grant_type=password&scope=*&username='${USERNAME}'&password='$PASSWORD'') >> /root/MEEK/NRA
+echo $(curl http://localhost:1880/auth/token --data 'client_id=node-red-admin&grant_type=password&scope=*&username='${NAMEA}'&password='$PASSA'') >> /root/MEEK/NRA
 sed -e 's+{"access_token":"++g' -i /root/MEEK/NRA
 sed -e 's+",".*++g' -i /root/MEEK/NRA
 NRA="$(tail -1 /root/MEEK/NRA)"
