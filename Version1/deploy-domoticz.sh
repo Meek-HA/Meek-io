@@ -65,52 +65,43 @@ sleep 15
 sed -i 's/config/config"\n      },\n    {\n     "name": "Domoticz",\n   "server": "127.0.0.1",\n        "port": "8080",\n       "roomid": 0,\n  "mqtt": true,\n    "ssl": false,\n "dimFix": 0,\n  "platform": "eDomoticz/g' /var/lib/homebridge/config.json
 
 ######--Username & PasswordD Generation--################################################
-echo -n "Enter username and password for user account:"
+#-Update Admin center
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/admin/index.php --output /var/www/html/admin/index.php
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/admin/capw.php --output /var/www/html/admin/capw.php
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/admin/cmqtpw.php --output /var/www/html/admin/cmqtpw.php
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/admin/cupw.php --output /var/www/html/admin/cupw.php
+chown -R www-data:www-data /var/www/html/admin
+curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/update.sh --output /root/MEEK/update.sh && chmod +rwx /root/MEEK/update.sh
+
+echo -n "Enter username and password for USER account:"
+echo
 read NAMEU
 echo "Your username is:" $NAMEU
 read -s -p "Password: " PASSU; echo
-rm -f /etc/nginx/.htpasswd
-printf "${NAMEU}:$(openssl passwd -apr1 ${PASSU})\n" >> /etc/nginx/.htpasswd
-##Set Domoticz Databse Username and Password
-        authuser=$(echo -ne "$NAMEU" | base64);
-        authpass=$(echo -ne "$PASSU" | md5sum | awk '{print $1}');
-        sqlite3 /home/root/domoticz/domoticz.db 'DELETE FROM Users WHERE ROWID=1'
-        sqlite3 /home/root/domoticz/domoticz.db 'INSERT INTO Users VALUES("1","1","'$authuser'","'$authpass'","","2","127","1");'
+rm /root/MEEK/cup
+echo $NAMEU >> /root/MEEK/cup
+echo $PASSU >> /root/MEEK/cup
+mv /root/MEEK/cup /var/www/html/admin/command/cup
 
+echo -n "Enter username and password for ADMIN account:"
+echo
+read NAMEA
+echo "Your username is:" $NAMEA
+read -s -p "Password: " PASSA; echo
+rm /root/MEEK/cap
+echo $NAMEA >> /root/MEEK/cap
+echo $PASSA >> /root/MEEK/cap
+mv /root/MEEK/cap /var/www/html/admin/command/cap
 
-echo -n "Enter username and password for admin account:"
-echo 
-read -p "Username: " USERNAME
-read -s -p "Password: " PASSWORD; echo
-printf "${USERNAME}:$(openssl passwd -apr1 ${PASSWORD})\n" >> /etc/nginx/.admin
-**Admin Node-Red
-nodepass=$(echo $(node -e "console.log(require('bcryptjs').hashSync(process.argv[1], 8));" $PASSWORD))
-sed -i '/password:/c\password: "'${nodepass}'",' /root/.node-red/settings.js
-sed -i '/username:/c\username: "'${USERNAME}'",' /root/.node-red/settings.js
-pm2 restart node-red
-
-
-echo -n "Enter username and password for Mosquitto:"
-read NAME
-echo "Your username is:" $NAME
-mosquitto_passwd -c /etc/mosquitto/passwd $NAME
-
-echo Homebridge Admin Credentials update
-                rm /var/lib/homebridge/auth.json
-                echo .
-                echo ..
-                echo ...
-                curl -X 'POST' \
-                        'http://127.0.0.1:8581/api/setup-wizard/create-first-user' \
-                        -H 'accept: */*' \
-                        -H 'Content-Type: application/json' \
-                        -d '{
-                        "name": "Meek",
-                        "username": "'$USERNAME'",
-                        "admin": true,
-                        "password": "'$PASSWORD'"
-                        }'
-                hb-service restart
+echo -n "Enter username and password for MQTT account:"
+echo
+read NAMEMQT
+echo "Your username is:" $NAMEMQT
+read -s -p "Password: " PASSMQT; echo
+rm /root/MEEK/cmqtp
+echo $NAMEMQT >> /root/MEEK/cmqtp
+echo $PASSMQT >> /root/MEEK/cmqtp
+mv /root/MEEK/cmqtp /var/www/html/admin/command/cmqtp
 
 ######--Tasmote MQTT-DSMR to Domoticz-P1-Lan--################################################
 curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/Meek.json --output /root/MEEK/Meek.json
