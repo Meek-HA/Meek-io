@@ -245,24 +245,6 @@
         ]
     },
     {
-        "id": "3429f98af3895f1c",
-        "type": "mqtt out",
-        "z": "d6a10370.54618",
-        "name": "TCPStart",
-        "topic": "cmnd/Meek_DD32/tcpconnect",
-        "qos": "",
-        "retain": "",
-        "respTopic": "",
-        "contentType": "",
-        "userProps": "",
-        "correl": "",
-        "expiry": "",
-        "broker": "8ce31000.7fac3",
-        "x": 860,
-        "y": 220,
-        "wires": []
-    },
-    {
         "id": "97baa9ac1eabc80e",
         "type": "change",
         "z": "d6a10370.54618",
@@ -286,6 +268,144 @@
         "wires": [
             [
                 "3429f98af3895f1c"
+            ]
+        ]
+    },
+    {
+        "id": "86c5c2b3dd430fb1",
+        "type": "mqtt in",
+        "z": "d6a10370.54618",
+        "name": "Volume Sub",
+        "topic": "domoticz/out",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "8ce31000.7fac3",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 110,
+        "y": 380,
+        "wires": [
+            [
+                "de15581cfd66321b",
+                "14f7020259961117"
+            ]
+        ]
+    },
+    {
+        "id": "3429f98af3895f1c",
+        "type": "mqtt out",
+        "z": "d6a10370.54618",
+        "name": "TCPStart",
+        "topic": "cmnd/Meek_DD32/tcpconnect",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "8ce31000.7fac3",
+        "x": 860,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "45231e671516fa75",
+        "type": "function",
+        "z": "d6a10370.54618",
+        "name": "Variable-MeekDD-Volume",
+        "func": "msg.payload = \">volume=\" + msg.payload.svalue1;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 340,
+        "wires": [
+            [
+                "9734177b8787fa1c"
+            ]
+        ]
+    },
+    {
+        "id": "de15581cfd66321b",
+        "type": "function",
+        "z": "d6a10370.54618",
+        "name": "Filter-MeekDD-Volume",
+        "func": "const activity = msg.payload.description\n\nif (activity === 'MeekDD-Volume' ) return msg\n\n// You must make sure you remove the default `return msg`\n//return msg",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 320,
+        "y": 340,
+        "wires": [
+            [
+                "45231e671516fa75"
+            ]
+        ]
+    },
+    {
+        "id": "9734177b8787fa1c",
+        "type": "mqtt out",
+        "z": "d6a10370.54618",
+        "name": "Command MeekDD32",
+        "topic": "cmnd/Meek_DD32/script",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "8ce31000.7fac3",
+        "x": 800,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "14f7020259961117",
+        "type": "function",
+        "z": "d6a10370.54618",
+        "name": "Filter-MeekDD-Melody",
+        "func": "const activity = msg.payload.description\n\nif (activity === 'MeekDD-Melody' ) return msg\n\n// You must make sure you remove the default `return msg`\n//return msg",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 320,
+        "y": 400,
+        "wires": [
+            [
+                "571469b4f1ca1f68"
+            ]
+        ]
+    },
+    {
+        "id": "571469b4f1ca1f68",
+        "type": "function",
+        "z": "d6a10370.54618",
+        "name": "Variable-MeekDD-Melody",
+        "func": "msg.payload = \">melody=\" + msg.payload.svalue1;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 400,
+        "wires": [
+            [
+                "9734177b8787fa1c"
             ]
         ]
     },
