@@ -1,13 +1,21 @@
 #!/bin/bash
 
-# 1) Create container in unpriviliged mode , MAX MBPS 3
-# 2) Enable container -nesting- & -NFS-
+# 1) Create container : 4GiB , Bridge:vmbr1  
+# 2) Uncheck -Nesting- & -Unpriviliged container-
 # 3) apt-get install curl -y && curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/master-domoticz.sh --output domoticz.sh && chmod +rwx domoticz.sh && ./domoticz.sh
-# 4) Domoticz : Hardware - " MQTT Gateway 127.0.0.1 " , " Autodiscovery Tasmota " , " Meek DD-P1 Smart Meter USB /dev/ttyUSB0 , Data Timeout - 1min , Rate Limit - 1 " , " Dummy " , " Disable Auto Update "
-#               Settings - " Location - MEEK-IO - Latitude : 51.49955 , Longtitude : 3.61480 " , " Enable Automatic Backup "
-#               Security - Networks *.*.*.* , User change admin to Meek Meek
-# 5) HomeBridge : install : "edomoticz plugin","homebridge-gsh","homebridge-alexa"
-# 6) nano .node-red/settings.js
+# 4) Domoticz Hardware :
+#	1) " Dummy "
+#	2) " MQTT Gateway 127.0.0.1 "
+#	3) " Autodiscovery Tasmota "
+#	4) " Meek DD-P1 Smart Meter USB " - /dev/ttyUSB0 , Data Timeout - 1min , Rate Limit - 1 " , " Disable Auto Update "
+# 5) Domoticz Settings :
+#	1) " Location - MEEK-IO - Latitude : 51.49955 , Longtitude : 3.61480 "
+#	2) " Enable Automatic Backup "
+#	3) " Security - Networks " *.*.*.* 
+#	4) " User " change admin to Meek Meek
+#	5) " Meter/Counters " , Max Power = 18000
+# 6) HomeBridge : install : "edomoticz plugin","homebridge-gsh","homebridge-alexa"
+# 7) nano .node-red/settings.js
 #       uncomments lines from " adminAuth: { "
 
 echo Update System
@@ -33,15 +41,10 @@ mkdir /home/root
 mkdir /home/root/domoticz
 mkdir /home/root/domoticz/plugins
 cd
-wget http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.19_amd64.deb
-dpkg -i libssl1.1_1.1.1f-1ubuntu2.19_amd64.deb
+wget http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.22_amd64.deb
+dpkg -i libssl1.1_1.1.1f-1ubuntu2.22_amd64.deb
 bash -c "$(curl -sSfL https://install.domoticz.com)"
-#curl -sSfL https://install.domoticz.com --output domo.sh
-#sed -i 's+http://www.domoticz.com/download.php?channel=release&type=release&system=${OS}&machine=${MACH}+https://releases.domoticz.com/releases/beta/domoticz_linux_x86_64.tgz+g' domo.sh
-#chmod +rwx domo.sh
-#./domo.sh
-rm libssl1.1_1.1.1f-1ubuntu2.19_amd64.deb
-#rm domo.sh
+rm libssl1.1_1.1.1f-1ubuntu2.22_amd64.deb
 
 echo Domoticz Service
 touch /etc/systemd/system/domoticz.service
@@ -75,11 +78,15 @@ echo Install Dashticz
 cd /var/www/html
 git clone https://github.com/Dashticz/dashticz
 
-######--NODEJS--################################################
+######--Homebridge--################################################
 echo Install HomeBridge
-curl -sL https://deb.nodesource.com/setup_18.x | sudo bash -
-apt-get install -y nodejs gcc g++ make python net-tools
-apt-get install -y nodejs git make g++ gcc
+apt install gpg
+curl -sSfL https://repo.homebridge.io/KEY.gpg | sudo gpg --dearmor | sudo tee /usr/share/keyrings/homebridge.gpg  > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/homebridge.gpg] https://repo.homebridge.io stable main" | sudo tee /etc/apt/sources.list.d/homebridge.list > /dev/null
+apt-get update -y
+apt-get install homebridge -y
+hb-service update-node
+
 
 ######--NODE-RED--################################################
 echo Install Node-Red
@@ -236,7 +243,7 @@ EOF
 chmod +x /root/MEEK/monitor.sh
 curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/Version1/update.sh --output /root/MEEK/update.sh && chmod +rwx /root/MEEK/update.sh
 
-echo -n "Create cronjob"
+echo -n "Cronjob Monitor wwwadmin directory"
 touch /root/MEEK/cron
 cat << EOF > /root/MEEK/cron
 @reboot /root/MEEK/monitor.sh
@@ -294,6 +301,22 @@ RestartSec=2s
 WantedBy=multi-user.target
 EOF
 
+######--Storage preservation--################################################
+echo -n "Crontab Remove Weekly Log files"
+touch /etc/cron.daily/deletelog
+cat << EOF > /etc/cron.weekly/deletelog
+#!/usr/bin/bash
+
+rm /var/log/*.gz
+rm /var/log/*.1
+rm -R /var/log/journal
+EOF
+chmod +rwx /etc/cron.daily/deletelog
+
+sed -i -e "s/weekly/daily/g" /etc/logrotate.d/rsyslog
 
 ######--DB Manipulation--################################################
 apt-get install sqlite3 -y
+
+######--Meek Domoticz IDX Reservation--################################################
+sqlite3 /home/root/domoticz/domoticz.db 'INSERT INTO DeviceStatus VALUES("1000","2","","Reserved","","Meek-IO","","","","","","12","255","","","2024-01-01 00:00:00","","","","","","","","","","","","","");'
