@@ -1,0 +1,31 @@
+Home-Assiatnt Dcoker-compose:
+----------------------------
+services:
+  homeassistant:
+    container_name: homeassistant
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+    volumes:
+      - /meek-io/home-assistant:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    restart: unless-stopped
+    stop_grace_period: 60s
+    privileged: true
+    network_mode: host
+    environment:
+      TZ: Europe/Amsterdam
+----------------------------
+
+Add the following lines in : .storage/http
+"use_x_forwarded_for": true,
+"trusted_proxies": ["10.10.10.100"],
+
+----------------------------
+NPM enable :
+- Block Common Exploits
+- Websockets Support
+- Forse SSL
+- HSTS Enabled
+- HTTP/2 Support
+Create SSL certificate
+----------------------------
