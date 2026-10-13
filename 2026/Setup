@@ -1,4 +1,4 @@
-Home-Assiatnt Dcoker-compose:
+Home-Assiatnt Docker-compose:
 ----------------------------
 services:
   homeassistant:
@@ -15,11 +15,17 @@ services:
     environment:
       TZ: Europe/Amsterdam
 ----------------------------
-
+Nginx compatibility:
+----------------------------
 Add the following lines in : .storage/http
 "use_x_forwarded_for": true,
 "trusted_proxies": ["10.10.10.100"],
-
+----------------------------
+Install hacks (docker HA enviroment):
+----------------------------
+wget -O - https://get.hacs.xyz | bash -
+----------------------------
+NPM Blocks Home-Assistant:
 ----------------------------
 NPM enable :
 - Block Common Exploits
