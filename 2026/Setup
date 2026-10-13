@@ -40,6 +40,8 @@ Create SSL certificate
 
 Zigbee2MQTT section:
 ----------------------------
+docker network create iot-network
+----------------------------
 Docker-Compose:
 ----------------------------
 services:
@@ -58,7 +60,7 @@ services:
         devices:
             - /dev/ttyESP0:/dev/ttyESP0
 
-
+----------------------------
 Socat:
 ----------------------------
 apt update && sudo apt install -y socat
@@ -112,4 +114,37 @@ advanced:
     - 74
     - 105
   channel: 11
+----------------------------
+
+MQTT:
+----------------------------
+version: "3.7"
+services:
+  # mqtt5 eclipse-mosquitto
+  mqtt5:
+    image: eclipse-mosquitto
+    container_name: mosquitto
+    ports:
+      - "1883:1883" #default mqtt port
+      - "8883:8883" #default mqtt port for websockets
+    volumes:
+      - /meek-io/mosquitto/config:/mosquitto/config:rw
+      - /meek-io/mosquitto/data:/mosquitto/data:rw
+      - /meek-io/mosquitto/log:/mosquitto/log:rw
+    restart: unless-stopped
+    networks:
+      - iot-network
+
+networks:
+    iot-network:
+        external: true
+----------------------------
+nano mosquitto.conf
+----------------------------
+allow_anonymous true
+listener 1883
+
+listener 8883
+certfile /mosquitto/config/server.crt
+keyfile /mosquitto/config/server.key
 ----------------------------
