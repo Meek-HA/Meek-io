@@ -35,3 +35,81 @@ NPM enable :
 - HTTP/2 Support
 Create SSL certificate
 ----------------------------
+
+
+
+Zigbee2MQTT section:
+----------------------------
+Docker-Compose:
+----------------------------
+services:
+    zigbee2mqtt:
+        container_name: zigbee2mqtt
+        image: ghcr.io/koenkk/zigbee2mqtt:latest
+        restart: unless-stopped
+        volumes:
+            - /meek-io/zigbee2mqtt:/app/data
+            - /run/udev:/run/udev:ro
+        ports:
+            - 8080:8080
+        environment:
+            - TZ=Europe/Berlin
+        
+        devices:
+            - /dev/ttyESP0:/dev/ttyESP0
+
+
+Socat:
+----------------------------
+apt update && sudo apt install -y socat
+nano /etc/systemd/system/esp32-serial-bridge.service
+----------------------------
+[Unit]
+Description=ESP32 Zigbee Reverse Serial Bridge
+After=network.target
+
+[Service]
+Type=simple
+# Listens on port 2000, links it to /dev/ttyESP0, and enables TCP keepalives to drop dead ghost links
+ExecStart=/usr/bin/socat -d -d PTY,link=/dev/ttyESP0,raw,echo=0,mode=660,group=dialout TCP-LISTEN:2000,reuseaddr,keepalive,keepidle=10,keepintvl=5,keepcnt=3
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+----------------------------
+systemctl daemon-reload
+systemctl enable --now esp32-serial-bridge.service
+----------------------------
+nano /meek-io/zigbee2mqtt/configuration.yaml
+----------------------------
+version: 5
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://10.10.10.104:1883
+  version: 5
+  enable_external_js: false
+frontend:
+  enabled: true
+  port: 8080
+homeassistant:
+  enabled: true
+onboarding: false
+serial:
+  port: /dev/ttyESP0
+  adapter: zstack
+  baudrate: 115200
+  rtscts: false
+advanced:
+  pan_id: 6754
+  ext_pan_id:
+    - 0
+    - 18
+    - 75
+    - 0
+    - 38
+    - 209
+    - 74
+    - 105
+  channel: 11
+----------------------------
