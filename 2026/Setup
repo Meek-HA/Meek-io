@@ -94,6 +94,7 @@ mqtt:
 frontend:
   enabled: true
   port: 8080
+  auth_token: "xxxPASSWORDxxx"
 homeassistant:
   enabled: true
 onboarding: false
@@ -147,4 +148,44 @@ listener 1883
 listener 8883
 certfile /mosquitto/config/server.crt
 keyfile /mosquitto/config/server.key
+----------------------------
+
+----------------------------
+NODE-RED
+----------------------------
+nano /meek-io/node-red/settings.js
+----------------------------
+adminAuth: {
+    type: "credentials",
+    users: [
+        {
+            username: process.env.NODE_RED_ADMIN_USER || "admin",
+            // Dynamically hash the plain-text password at boot time:
+            password: require('bcryptjs').hashSync(process.env.NODE_RED_ADMIN_PASSWORD || "default_fallback_password", 8),
+            permissions: "*"
+        }
+    ]
+},
+----------------------------
+version: "3.7"
+
+services:
+  node-red:
+    image: nodered/node-red:latest
+    user: "1000:1000" # Or explicitly '1000:1000'
+    environment:
+      - TZ=Europe/Amsterdam
+      - NODE_RED_ADMIN_USER=xxxUSERNAMExxx
+      - NODE_RED_ADMIN_PASSWORD=xxxPASSWORDxxx
+    ports:
+      - "1880:1880"
+    volumes:
+      - /meek-io/node-red:/data
+    restart: always
+
+networks:
+    iot-network:
+        external: true
+----------------------------
+chown -R 1000:1000 /meek-io/node-red
 ----------------------------
