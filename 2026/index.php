@@ -6,8 +6,8 @@ session_start();
 header('Cache-Control: no-store');
 
 $actionsDir = '/config/www/actions';
-$versionsFile = '/config/www/actions/MQTT/versions.json';
-$hostIpFile = '/config/www/actions/MQTT/host-ip.txt';
+$versionsFile = '/config/www/actions/settings/versions.json';
+$hostIpFile = '/config/www/actions/settings/host-ip.txt';
 
 $zigbeeContainerName = 'zigbee2mqtt';
 $nodeRedContainerName = 'node-red-node-red-1';
@@ -17,13 +17,13 @@ $nodeRedContainerName = 'node-red-node-red-1';
  * after a Mosquitto user is successfully added or updated.
  *
  * Host path:
- * /meek-io/meek/commands/MQTT/current-credentials.txt
+ * /meek-io/meek/commands/settings/current-credentials.txt
  *
  * This container path uses the same shared commands volume:
  * /meek-io/meek/commands mounted at /config/www/actions
  */
 $mosquittoCredentialsFile =
-    '/config/www/actions/MQTT/current-credentials.txt';
+    '/config/www/actions/settings/current-credentials.txt';
 
 /*
  * Keep disabled until System-Update in the host handler updates
@@ -204,10 +204,10 @@ if (isset($_SESSION['flash'])) {
  * Read version information created by meek-action-handler.sh.
  *
  * Host path:
- * /meek-io/meek/commands/MQTT/versions.json
+ * /meek-io/meek/commands/settings/versions.json
  *
  * Container path:
- * /config/www/actions/MQTT/versions.json
+ * /config/www/actions/settings/versions.json
  */
 $versions = [
     'zigbee2mqtt' => [
@@ -256,10 +256,10 @@ $nodeRedUpdateAvailable = (bool) $versions['node-red']['update_available'];
  * Read the host IP and extract the final octet.
  *
  * Host path:
- * /meek-io/meek/commands/MQTT/host-ip.txt
+ * /meek-io/meek/commands/settings/host-ip.txt
  *
  * Container path:
- * /config/www/actions/MQTT/host-ip.txt
+ * /config/www/actions/settings/host-ip.txt
  *
  * Example:
  * 10.10.10.104 -> 104
