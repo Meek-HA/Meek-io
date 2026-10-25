@@ -1,329 +1,399 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -euo pipefail
 
-ACTION_DIR="/meek-io/meek/commands"
-LOG_FILE="/var/log/meek-action-handler.log"
+# ============================================================
+# Meek.io action handler
+# ============================================================
 
-HOME_ASSISTANT_COMPOSE="/var/lib/docker/volumes/portainer_data/_data/compose/1/docker-compose.yml"
+COMMANDS_DIR="/meek-io/meek/commands"
+SETTINGS_DIR="${COMMANDS_DIR}/settings"
+
+VERSIONS_FILE="${SETTINGS_DIR}/versions.json"
+VERSIONS_CACHE_DIR="${SETTINGS_DIR}/cache"
+
+CREDENTIALS_FILE="${SETTINGS_DIR}/current-credentials.txt"
+HOST_IP_FILE="${SETTINGS_DIR}/host-ip.txt"
 
 ZIGBEE_CONTAINER="zigbee2mqtt"
 NODE_RED_CONTAINER="node-red-node-red-1"
 MOSQUITTO_CONTAINER="mosquitto"
-
-# Optional explicit Compose paths.
-# Leave empty to discover them from the containers' Compose labels.
-ZIGBEE_COMPOSE=""
-NODE_RED_COMPOSE=""
-
-# Must match password_file in your Mosquitto configuration.
 MOSQUITTO_PASSWORD_FILE="/mosquitto/config/passwd"
 
-# Plaintext record of the currently configured Mosquitto credentials.
-# The PHP admin page must mount /meek-io/meek/commands at
-# /config/www/actions to read this file.
-MOSQUITTO_CREDENTIALS_FILE="/meek-io/meek/commands/MQTT/current-credentials.txt"
+CHECK_INTERVAL_SECONDS="900"
 
-# Host IP file read by Node-RED through the shared commands volume.
-HOST_IP_FILE="$ACTION_DIR/MQTT/host-ip.txt"
+# ============================================================
+# Preparation
+# ============================================================
+
+mkdir -p "${COMMANDS_DIR}"
+mkdir -p "${SETTINGS_DIR}"
+mkdir -p "${VERSIONS_CACHE_DIR}"
+
+touch "${CREDENTIALS_FILE}"
+chmod 644 "${CREDENTIALS_FILE}"
 
 log() {
-    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" \
-        >> "$LOG_FILE"
+    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
 }
 
-run_logged() {
-    "$@" >> "$LOG_FILE" 2>&1
-}
+# ============================================================
+# Docker helpers
+# ============================================================
 
-update_container() {
+docker_container_exists() {
     local container="$1"
-    local override="$2"
-    local files service project working_dir path
-    local -a compose_args file_list
 
-    service="$(docker inspect \
-        --format '{{ index .Config.Labels "com.docker.compose.service" }}' \
-        "$container" 2>/dev/null)" || return 1
+    docker inspect "${container}" >/dev/null 2>&1
+}
 
-    if [[ -z "$service" || "$service" == "<no value>" ]]; then
-        log "ERROR: No Compose service label on $container"
+docker_label_version() {
+    local container="$1"
+    local label="$2"
+
+    docker inspect "${container}" \
+        --format "{{index .Config.Labels \"${label}\"}}" \
+        2>/dev/null || true
+}
+
+# ============================================================
+# Version helpers
+# ============================================================
+
+get_installed_version() {
+    local container="$1"
+    local version=""
+
+    version="$(docker_label_version \
+        "${container}" \
+        "org.opencontainers.image.version")"
+
+    if [[ -z "${version}" ]]; then
+        version="$(docker_label_version \
+            "${container}" \
+            "org.label-schema.version")"
+    fi
+
+    if [[ -z "${version}" ]]; then
+        version="Unknown"
+    fi
+
+    printf '%s' "${version}"
+}
+
+get_latest_github_version() {
+    local repository="$1"
+    local cache_file="${VERSIONS_CACHE_DIR}/${repository//\//_}.txt"
+    local response=""
+    local version=""
+
+    if [[ -f "${cache_file}" ]]; then
+        local cache_age
+
+        cache_age="$(
+            (
+                date +%s
+                stat -c %Y "${cache_file}"
+            ) | paste -sd- | bc
+        )"
+
+        if (( cache_age < 3600 )); then
+            cat "${cache_file}"
+            return
+        fi
+    fi
+
+    response="$(curl -fsSL \
+        --max-time 10 \
+        -H 'User-Agent: Meek-io-Action-Handler' \
+        -H 'Accept: application/vnd.github+json' \
+        "https://api.github.com/repos/${repository}/releases/latest" \
+        2>/dev/null || true)"
+
+    version="$(printf '%s' "${response}" \
+        | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' \
+        | head -n 1 \
+        | cut -d '"' -f 4 || true)"
+
+    if [[ -z "${version}" ]]; then
+        if [[ -f "${cache_file}" ]]; then
+            cat "${cache_file}"
+        else
+            printf 'Unknown'
+        fi
+
+        return
+    fi
+
+    printf '%s' "${version}" > "${cache_file}"
+    chmod 644 "${cache_file}"
+
+    printf '%s' "${version}"
+}
+
+version_is_older() {
+    local installed="$1"
+    local latest="$2"
+
+    installed="${installed#v}"
+    latest="${latest#v}"
+
+    if [[ ! "${installed}" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
         return 1
     fi
 
-    project="$(docker inspect \
-        --format '{{ index .Config.Labels "com.docker.compose.project" }}' \
-        "$container" 2>/dev/null)" || return 1
+    if [[ ! "${latest}" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+        return 1
+    fi
 
-    working_dir="$(docker inspect \
-        --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' \
-        "$container" 2>/dev/null)" || return 1
+    [[ "$(
+        printf '%s\n%s\n' \
+            "${installed}" \
+            "${latest}" \
+            | sort -V \
+            | head -n 1
+    )" != "${installed}" ]]
+}
 
-    if [[ -n "$override" ]]; then
-        files="$override"
+write_versions_file() {
+    local zigbee_installed
+    local zigbee_latest
+    local zigbee_update
+
+    local node_red_installed
+    local node_red_latest
+    local node_red_update
+
+    local temporary
+
+    zigbee_installed="$(get_installed_version "${ZIGBEE_CONTAINER}")"
+    zigbee_latest="$(get_latest_github_version "Koenkk/zigbee2mqtt")"
+
+    node_red_installed="$(get_installed_version "${NODE_RED_CONTAINER}")"
+    node_red_latest="$(get_latest_github_version "node-red/node-red")"
+
+    if version_is_older "${zigbee_installed}" "${zigbee_latest}"; then
+        zigbee_update="true"
     else
-        files="$(docker inspect \
-            --format '{{ index .Config.Labels "com.docker.compose.project.config_files" }}' \
-            "$container" 2>/dev/null)" || return 1
+        zigbee_update="false"
     fi
 
-    if [[ -z "$files" || "$files" == "<no value>" ]]; then
-        log "ERROR: Compose path unavailable for $container; set its override"
-        return 1
+    if version_is_older "${node_red_installed}" "${node_red_latest}"; then
+        node_red_update="true"
+    else
+        node_red_update="false"
     fi
 
-    compose_args=()
+    temporary="${VERSIONS_FILE}.tmp"
 
-    if [[ -n "$project" && "$project" != "<no value>" ]]; then
-        compose_args+=(-p "$project")
-    fi
+    cat > "${temporary}" <<EOF
+{
+  "updated_at": "$(date -Is)",
+  "zigbee2mqtt": {
+    "installed": "${zigbee_installed}",
+    "latest": "${zigbee_latest}",
+    "update_available": ${zigbee_update}
+  },
+  "node-red": {
+    "installed": "${node_red_installed}",
+    "latest": "${node_red_latest}",
+    "update_available": ${node_red_update}
+  }
+}
+EOF
 
-    if [[ -d "$working_dir" ]]; then
-        compose_args+=(--project-directory "$working_dir")
-    fi
+    mv "${temporary}" "${VERSIONS_FILE}"
+    chmod 644 "${VERSIONS_FILE}"
 
-    IFS=',' read -r -a file_list <<< "$files"
-
-    for path in "${file_list[@]}"; do
-        if [[ "$path" != /* && -d "$working_dir" ]]; then
-            path="$working_dir/$path"
-        fi
-
-        if [[ ! -f "$path" ]]; then
-            log "ERROR: Compose file not found: $path"
-            return 1
-        fi
-
-        compose_args+=(-f "$path")
-    done
-
-    log "Pulling image for $container"
-
-    run_logged docker compose "${compose_args[@]}" pull "$service" \
-        || return 1
-
-    log "Recreating $container"
-
-    run_logged docker compose "${compose_args[@]}" up -d "$service"
+    log "Version information updated:"
+    log "  Zigbee2MQTT: installed=${zigbee_installed}, latest=${zigbee_latest}"
+    log "  Node-RED: installed=${node_red_installed}, latest=${node_red_latest}"
 }
 
-save_host_ip() {
-    local host_ip
+# ============================================================
+# Service actions
+# ============================================================
 
-    host_ip="$(hostname -I | awk '{print $1}')"
+run_service_action() {
+    local service="$1"
+    local action="$2"
+    local container=""
 
-    if [[ -z "$host_ip" ]]; then
-        log "ERROR: Could not determine host IP"
-        return 1
+    case "${service}" in
+        Zigbee2MQTT)
+            container="${ZIGBEE_CONTAINER}"
+            ;;
+        Node-RED)
+            container="${NODE_RED_CONTAINER}"
+            ;;
+        *)
+            log "Unknown service: ${service}"
+            return
+            ;;
+    esac
+
+    if ! docker_container_exists "${container}"; then
+        log "Container not found: ${container}"
+        return
     fi
 
-    if ! mkdir -p -- "$(dirname -- "$HOST_IP_FILE")"; then
-        log "ERROR: Could not create host IP directory: $(dirname -- "$HOST_IP_FILE")"
-        return 1
-    fi
+    case "${action}" in
+        Start)
+            log "Starting ${container}"
+            docker start "${container}"
+            ;;
+        Stop)
+            log "Stopping ${container}"
+            docker stop "${container}"
+            ;;
+        Restart)
+            log "Restarting ${container}"
+            docker restart "${container}"
+            ;;
+        Update)
+            log "Updating ${container}"
 
-    if ! printf '%s' "$host_ip" > "$HOST_IP_FILE"; then
-        log "ERROR: Could not write host IP file: $HOST_IP_FILE"
-        return 1
-    fi
+            docker pull "${container}" || true
+            docker restart "${container}" || true
+            ;;
+        *)
+            log "Unknown action for ${service}: ${action}"
+            ;;
+    esac
 
-    chmod 644 "$HOST_IP_FILE"
-
-    log "Saved host IP to $HOST_IP_FILE: $host_ip"
+    write_versions_file
 }
 
-save_mosquitto_credentials() {
-    local username="$1"
-    local password="$2"
-    local credentials_dir
-    local credentials_temp
-
-    credentials_dir="$(dirname -- "$MOSQUITTO_CREDENTIALS_FILE")"
-    credentials_temp="${MOSQUITTO_CREDENTIALS_FILE}.tmp.$$"
-
-    if ! mkdir -p -- "$credentials_dir"; then
-        log "ERROR: Could not create credentials directory: $credentials_dir"
-        return 1
-    fi
-
-    if ! printf 'username=%s\npassword=%s\n' \
-        "$username" "$password" > "$credentials_temp"; then
-        log "ERROR: Could not write temporary credentials file"
-        rm -f -- "$credentials_temp"
-        return 1
-    fi
-
-    chmod 644 "$credentials_temp"
-
-    if ! mv -f -- "$credentials_temp" "$MOSQUITTO_CREDENTIALS_FILE"; then
-        log "ERROR: Could not move credentials file into place"
-        rm -f -- "$credentials_temp"
-        return 1
-    fi
-
-    log "Saved current Mosquitto credentials to $MOSQUITTO_CREDENTIALS_FILE"
-}
+# ============================================================
+# Mosquitto user management
+# ============================================================
 
 add_mosquitto_user() {
-    local file="$1"
-    local username password
+    local username=""
+    local password=""
 
-    {
-        IFS= read -r username || return 1
-        IFS= read -r password || return 1
-    } < "$file"
+    username="$(sed -n '1p' "${command_file}")"
+    password="$(sed -n '2p' "${command_file}")"
 
-    if [[ -z "$username" || -z "$password" ]]; then
-        log "ERROR: Empty Mosquitto username or password"
-        return 1
+    username="${username//$'\r'/}"
+    password="${password//$'\r'/}"
+
+    if [[ -z "${username}" || -z "${password}" ]]; then
+        log "Mosquitto-AddUser: missing username or password"
+        return
     fi
 
-    if [[ "$username" == *:* || "$username" == *$'\r'* ||
-          "$password" == *$'\r'* ]]; then
-        log "ERROR: Unsupported characters in Mosquitto request"
-        return 1
+    if ! docker_container_exists "${MOSQUITTO_CONTAINER}"; then
+        log "Mosquitto container not found: ${MOSQUITTO_CONTAINER}"
+        return
     fi
 
-    # The password file must already be configured and writable
-    # inside the Mosquitto container.
-    if ! docker exec "$MOSQUITTO_CONTAINER" \
-        test -f "$MOSQUITTO_PASSWORD_FILE"; then
-        log "ERROR: Mosquitto password file not found: $MOSQUITTO_PASSWORD_FILE"
-        return 1
-    fi
+    log "Adding or updating Mosquitto user: ${username}"
 
-    # Recreate the password file with only this user.
-    # -c overwrites the existing password file and removes all other users.
-    if ! run_logged docker exec "$MOSQUITTO_CONTAINER" \
-        mosquitto_passwd -b -c "$MOSQUITTO_PASSWORD_FILE" \
-        "$username" "$password"; then
-        log "ERROR: Failed to write Mosquitto user"
-        return 1
-    fi
+    docker exec "${MOSQUITTO_CONTAINER}" \
+        mosquitto_passwd -b \
+        "${MOSQUITTO_PASSWORD_FILE}" \
+        "${username}" \
+        "${password}"
 
-    if ! save_mosquitto_credentials "$username" "$password"; then
-        log "ERROR: Mosquitto user was updated, but credentials file could not be saved"
-    fi
+    docker exec "${MOSQUITTO_CONTAINER}" \
+        mosquitto_ctrl dynsec reload 2>/dev/null || true
 
-    # Restart to load the updated password file.
-    run_logged docker restart "$MOSQUITTO_CONTAINER"
+    docker restart "${MOSQUITTO_CONTAINER}"
+
+    printf 'username=%s\npassword=%s\n' \
+        "${username}" \
+        "${password}" \
+        > "${CREDENTIALS_FILE}.tmp"
+
+    mv "${CREDENTIALS_FILE}.tmp" "${CREDENTIALS_FILE}"
+    chmod 644 "${CREDENTIALS_FILE}"
+
+    log "Mosquitto credentials updated"
 }
 
-process_file() {
-    local file="$1"
-    local name
-    name="$(basename -- "$file")"
+# ============================================================
+# Command processing
+# ============================================================
 
-    log "Processing action: $name"
+process_command_file() {
+    local command_file="$1"
+    local command_name
+    local service=""
+    local action=""
 
-    case "$name" in
+    command_name="$(basename "${command_file}")"
+
+    log "Processing command: ${command_name}"
+
+    case "${command_name}" in
         System-Reboot)
-            rm -f -- "$file"
-            log "Rebooting host"
+            log "Reboot requested"
+            rm -f "${command_file}"
             sync
-            run_logged /sbin/reboot
+            sleep 2
+            reboot
             ;;
 
         System-Update)
-            rm -f -- "$file"
-
-            if [[ ! -f "$HOME_ASSISTANT_COMPOSE" ]]; then
-                log "ERROR: Home Assistant Compose file not found"
-                return
-            fi
-
-            log "Updating Home Assistant Compose project"
-
-            if run_logged docker compose \
-                -f "$HOME_ASSISTANT_COMPOSE" pull &&
-               run_logged docker compose \
-                -f "$HOME_ASSISTANT_COMPOSE" up -d; then
-                log "Home Assistant project updated"
-            else
-                log "ERROR: Home Assistant project update failed"
-            fi
+            log "System update requested"
+            rm -f "${command_file}"
+            # Add your supported host update command here.
             ;;
 
-        Zigbee2MQTT-Start|Zigbee2MQTT-Stop|Zigbee2MQTT-Restart)
-            rm -f -- "$file"
-
-            local action="${name#Zigbee2MQTT-}"
-            action="${action,,}"
-
-            if run_logged docker "$action" "$ZIGBEE_CONTAINER"; then
-                log "Completed: $name"
-            else
-                log "ERROR: Failed: $name"
-            fi
+        Zigbee2MQTT-Start|Zigbee2MQTT-Stop|Zigbee2MQTT-Restart|Zigbee2MQTT-Update)
+            service="Zigbee2MQTT"
+            action="${command_name#Zigbee2MQTT-}"
+            rm -f "${command_file}"
+            run_service_action "${service}" "${action}"
             ;;
 
-        Zigbee2MQTT-Update)
-            rm -f -- "$file"
-
-            if update_container "$ZIGBEE_CONTAINER" "$ZIGBEE_COMPOSE"; then
-                log "Zigbee2MQTT updated"
-            else
-                log "ERROR: Zigbee2MQTT update failed"
-            fi
-            ;;
-
-        Node-RED-Start|Node-RED-Stop|Node-RED-Restart)
-            rm -f -- "$file"
-
-            local action="${name#Node-RED-}"
-            action="${action,,}"
-
-            if run_logged docker "$action" "$NODE_RED_CONTAINER"; then
-                log "Completed: $name"
-            else
-                log "ERROR: Failed: $name"
-            fi
-            ;;
-
-        Node-RED-Update)
-            rm -f -- "$file"
-
-            if update_container "$NODE_RED_CONTAINER" "$NODE_RED_COMPOSE"; then
-                log "Node-RED updated"
-            else
-                log "ERROR: Node-RED update failed"
-            fi
+        Node-RED-Start|Node-RED-Stop|Node-RED-Restart|Node-RED-Update)
+            service="Node-RED"
+            action="${command_name#Node-RED-}"
+            rm -f "${command_file}"
+            run_service_action "${service}" "${action}"
             ;;
 
         Mosquitto-AddUser)
-            if add_mosquitto_user "$file"; then
-                log "Mosquitto user request completed"
-            else
-                log "ERROR: Mosquitto user request failed; resubmit after fixing configuration"
-            fi
-
-            rm -f -- "$file"
+            add_mosquitto_user
+            rm -f "${command_file}"
             ;;
 
         *)
-            log "Ignoring unknown command: $name"
+            log "Ignoring unknown command: ${command_name}"
+            rm -f "${command_file}"
             ;;
     esac
 }
 
-mkdir -p "$ACTION_DIR"
-touch "$LOG_FILE"
+process_commands() {
+    local command_file
 
-# Save the Docker host LAN IP for Node-RED.
-save_host_ip
-
-# Prevent two copies of the handler running simultaneously.
-exec 9>/run/meek-action-handler.lock
-flock -n 9 || exit 1
-
-log "Action handler started"
-
-while true; do
     shopt -s nullglob
 
-    for file in "$ACTION_DIR"/*; do
-        [[ -f "$file" && ! -L "$file" ]] || continue
-        process_file "$file"
+    for command_file in "${COMMANDS_DIR}"/*; do
+        [[ -f "${command_file}" ]] || continue
+
+        # Ignore hidden temporary files.
+        [[ "$(basename "${command_file}")" == .* ]] && continue
+
+        process_command_file "${command_file}"
     done
 
-    sleep 2
+    shopt -u nullglob
+}
+
+# ============================================================
+# Main loop
+# ============================================================
+
+log "Meek.io action handler started"
+
+write_versions_file
+
+while true; do
+    process_commands
+    write_versions_file
+
+    sleep "${CHECK_INTERVAL_SECONDS}"
 done
