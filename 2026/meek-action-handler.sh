@@ -19,8 +19,12 @@ NODE_RED_CONTAINER="node-red-node-red-1"
 MOSQUITTO_CONTAINER="mosquitto"
 MOSQUITTO_PASSWORD_FILE="/mosquitto/config/passwd"
 
-# Fallback scan interval in seconds.
-FALLBACK_SCAN_SECONDS="60"
+NODE_RED_SETTINGS_FILE="/meek-io/node-red/settings.js"
+NODE_RED_AUTH_FILE="/meek-io/node-red/admin-auth.js"
+
+ZIGBEE_CONFIG_FILE="/meek-io/zigbee2mqtt/configuration.yaml"
+
+CHECK_INTERVAL_SECONDS="5"
 
 # ============================================================
 # Preparation
@@ -148,12 +152,7 @@ get_latest_github_version() {
     if [[ -f "${cache_file}" ]]; then
         local cache_age
 
-        cache_age="$(
-            (
-                date +%s
-                stat -c %Y "${cache_file}"
-            ) | paste -sd- | bc
-        )"
+        cache_age="$(( $(date +%s) - $(stat -c %Y "${cache_file}") ))"
 
         if (( cache_age < 3600 )); then
             cat "${cache_file}"
@@ -408,6 +407,116 @@ add_mosquitto_user() {
 }
 
 # ============================================================
+# Node-RED login management
+# ============================================================
+
+update_node_red_credentials() {
+    local command_file="$1"
+    local username=""
+    local password=""
+    local hash=""
+    local temporary=""
+
+    username="$(sed -n '1p' "${command_file}")"
+    password="$(sed -n '2p' "${command_file}")"
+
+    username="${username//$'\r'/}"
+    password="${password//$'\r'/}"
+
+    if [[ -z "${username}" || -z "${password}" ]]; then
+        log "Node-RED-SetCredentials: missing username or password"
+        return
+    fi
+
+    if [[ ! -f "${NODE_RED_SETTINGS_FILE}" ]]; then
+        log "Node-RED settings file not found: ${NODE_RED_SETTINGS_FILE}"
+        return
+    fi
+
+    if ! docker_container_exists "${NODE_RED_CONTAINER}"; then
+        log "Node-RED container not found: ${NODE_RED_CONTAINER}"
+        return
+    fi
+
+    hash="$(docker exec "${NODE_RED_CONTAINER}" node -e \
+        "console.log(require('bcryptjs').hashSync(process.argv[1], 8))" \
+        "${password}")"
+
+    if [[ -z "${hash}" ]]; then
+        log "Failed to generate Node-RED password hash"
+        return
+    fi
+
+    temporary="${NODE_RED_AUTH_FILE}.tmp"
+
+    cat > "${temporary}" <<EOF
+module.exports = {
+    type: "credentials",
+    users: [
+        {
+            username: "${username}",
+            password: "${hash}",
+            permissions: "*"
+        }
+    ]
+};
+EOF
+
+    mv "${temporary}" "${NODE_RED_AUTH_FILE}"
+    chmod 644 "${NODE_RED_AUTH_FILE}"
+
+    if ! docker restart "${NODE_RED_CONTAINER}"; then
+        log "Failed to restart Node-RED"
+        return
+    fi
+
+    log "Node-RED login updated for user: ${username}"
+}
+
+# ============================================================
+# Zigbee2MQTT frontend token management
+# ============================================================
+
+update_zigbee_token() {
+    local command_file="$1"
+    local token=""
+
+    token="$(sed -n '1p' "${command_file}")"
+    token="${token//$'\r'/}"
+
+    if [[ -z "${token}" ]]; then
+        log "Zigbee2MQTT-SetToken: missing token"
+        return
+    fi
+
+    if [[ ! -f "${ZIGBEE_CONFIG_FILE}" ]]; then
+        log "Zigbee2MQTT configuration file not found: ${ZIGBEE_CONFIG_FILE}"
+        return
+    fi
+
+    if ! docker_container_exists "${ZIGBEE_CONTAINER}"; then
+        log "Zigbee2MQTT container not found: ${ZIGBEE_CONTAINER}"
+        return
+    fi
+
+    log "Updating Zigbee2MQTT frontend token"
+
+    if ! sed -i \
+        "s|^\([[:space:]]*\)auth_token:.*|\1auth_token: \"${token}\"|" \
+        "${ZIGBEE_CONFIG_FILE}"; then
+        log "Failed to update Zigbee2MQTT configuration"
+        return
+    fi
+
+    if ! docker restart "${ZIGBEE_CONTAINER}"; then
+        log "Failed to restart Zigbee2MQTT"
+        return
+    fi
+
+    log "Zigbee2MQTT frontend token updated"
+}
+
+# ============================================================
 # Command processing
 # ============================================================
 
@@ -417,7 +526,6 @@ process_command_file() {
     local service=""
     local action=""
 
-    # Ignore files that disappeared before processing.
     [[ -f "${command_file}" ]] || return
 
     command_name="$(basename "${command_file}")"
@@ -436,7 +544,6 @@ process_command_file() {
         System-Update)
             log "System update requested"
             rm -f "${command_file}"
-            # Add your supported host update command here.
             ;;
 
         Zigbee2MQTT-Start|Zigbee2MQTT-Stop|Zigbee2MQTT-Restart|Zigbee2MQTT-Update)
@@ -458,6 +565,16 @@ process_command_file() {
             rm -f "${command_file}"
             ;;
 
+        Node-RED-SetCredentials)
+            update_node_red_credentials "${command_file}"
+            rm -f "${command_file}"
+            ;;
+
+        Zigbee2MQTT-SetToken)
+            update_zigbee_token "${command_file}"
+            rm -f "${command_file}"
+            ;;
+
         *)
             log "Ignoring unknown command: ${command_name}"
             rm -f "${command_file}"
@@ -473,7 +590,6 @@ process_commands() {
     for command_file in "${COMMANDS_DIR}"/*; do
         [[ -f "${command_file}" ]] || continue
 
-        # Ignore hidden temporary files.
         [[ "$(basename "${command_file}")" == .* ]] && continue
 
         process_command_file "${command_file}"
@@ -483,41 +599,26 @@ process_commands() {
 }
 
 # ============================================================
-# Main loop: immediate inotify processing
+# Main loop: check commands every 5 seconds
 # ============================================================
 
 log "Meek.io action handler started"
 
-# Process commands left behind before a restart.
 process_commands
 
-# Refresh versions and host IP at startup.
 write_versions_file
 
 LAST_VERSION_UPDATE="$(date +%s)"
-LAST_FALLBACK_SCAN="$(date +%s)"
 
 while true; do
-    event_file="$(inotifywait -q \
-        -e close_write,moved_to,create \
-        --format '%w%f' \
-        "${COMMANDS_DIR}")"
-
-    if [[ -f "${event_file}" ]] && [[ "$(basename "${event_file}")" != .* ]]; then
-        process_command_file "${event_file}"
-    fi
+    process_commands
 
     now="$(date +%s)"
 
-    # Fallback scan protects against a missed filesystem event.
-    if (( now - LAST_FALLBACK_SCAN >= FALLBACK_SCAN_SECONDS )); then
-        process_commands
-        LAST_FALLBACK_SCAN="${now}"
-    fi
-
-    # Refresh version information at most once per hour.
     if (( now - LAST_VERSION_UPDATE >= 3600 )); then
         write_versions_file
         LAST_VERSION_UPDATE="${now}"
     fi
+
+    sleep "${CHECK_INTERVAL_SECONDS}"
 done
