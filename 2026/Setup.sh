@@ -1,8 +1,11 @@
 ######--ADMIN CONTROL CENTER--################################################
+apt update
+apt install -y inotify-tools
+apt install -y curl
+
 echo -n "Admin page install"
 mkdir /meek-io/nginx/config/www/admin
 curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/2026/index.php --output /meek-io/nginx/config/www/admin/index.php
-
 
 mkdir /meek-io/meek/
 curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/2026/meek-action-handler.sh --output /meek-io/meek//meek-action-handler.sh
@@ -28,7 +31,6 @@ EOF
 
 systemctl daemon-reload
 systemctl enable --now meek-action-handler.service
-
 
 chown -R 1000:1000 /meek-io/meek/commands
 chmod 755 /meek-io/meek/commands
