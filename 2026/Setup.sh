@@ -8,3 +8,23 @@ mkdir /meek-io/meek/
 curl https://raw.githubusercontent.com/Meek-HA/Meek-io/master/2026/meek-action-handler.sh --output /meek-io/meek//meek-action-handler.sh
 chmod +x /meek-io/meek/meek-action-handler.sh
 
+cat > /etc/systemd/system/meek-action-handler.service <<'EOF'
+[Unit]
+Description=Meek.io Admin Page Action Handler
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/meek-io/meek/meek-action-handler.sh
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now meek-action-handler.service
