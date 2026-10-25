@@ -23,6 +23,9 @@ MOSQUITTO_PASSWORD_FILE="/mosquitto/config/passwd"
 # /config/www/actions to read this file.
 MOSQUITTO_CREDENTIALS_FILE="/meek-io/meek/commands/MQTT/current-credentials.txt"
 
+# Host IP file read by Node-RED through the shared commands volume.
+HOST_IP_FILE="$ACTION_DIR/MQTT/host-ip.txt"
+
 log() {
     printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" \
         >> "$LOG_FILE"
@@ -101,6 +104,31 @@ update_container() {
     log "Recreating $container"
 
     run_logged docker compose "${compose_args[@]}" up -d "$service"
+}
+
+save_host_ip() {
+    local host_ip
+
+    host_ip="$(hostname -I | awk '{print $1}')"
+
+    if [[ -z "$host_ip" ]]; then
+        log "ERROR: Could not determine host IP"
+        return 1
+    fi
+
+    if ! mkdir -p -- "$(dirname -- "$HOST_IP_FILE")"; then
+        log "ERROR: Could not create host IP directory: $(dirname -- "$HOST_IP_FILE")"
+        return 1
+    fi
+
+    if ! printf '%s' "$host_ip" > "$HOST_IP_FILE"; then
+        log "ERROR: Could not write host IP file: $HOST_IP_FILE"
+        return 1
+    fi
+
+    chmod 644 "$HOST_IP_FILE"
+
+    log "Saved host IP to $HOST_IP_FILE: $host_ip"
 }
 
 save_mosquitto_credentials() {
@@ -279,6 +307,9 @@ process_file() {
 
 mkdir -p "$ACTION_DIR"
 touch "$LOG_FILE"
+
+# Save the Docker host LAN IP for Node-RED.
+save_host_ip
 
 # Prevent two copies of the handler running simultaneously.
 exec 9>/run/meek-action-handler.lock
