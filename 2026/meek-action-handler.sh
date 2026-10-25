@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 # ============================================================
 # Meek.io action handler
@@ -19,7 +19,8 @@ NODE_RED_CONTAINER="node-red-node-red-1"
 MOSQUITTO_CONTAINER="mosquitto"
 MOSQUITTO_PASSWORD_FILE="/mosquitto/config/passwd"
 
-CHECK_INTERVAL_SECONDS="900"
+# Fallback scan interval in seconds.
+FALLBACK_SCAN_SECONDS="60"
 
 # ============================================================
 # Preparation
@@ -53,6 +54,64 @@ docker_label_version() {
     docker inspect "${container}" \
         --format "{{index .Config.Labels \"${label}\"}}" \
         2>/dev/null || true
+}
+
+docker_compose_service() {
+    local container="$1"
+
+    docker inspect "${container}" \
+        --format '{{index .Config.Labels "com.docker.compose.service"}}' \
+        2>/dev/null || true
+}
+
+docker_compose_project() {
+    local container="$1"
+
+    docker inspect "${container}" \
+        --format '{{index .Config.Labels "com.docker.compose.project"}}' \
+        2>/dev/null || true
+}
+
+docker_compose_file() {
+    local container="$1"
+
+    docker inspect "${container}" \
+        --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}' \
+        2>/dev/null || true
+}
+
+docker_compose_directory() {
+    local container="$1"
+
+    docker inspect "${container}" \
+        --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' \
+        2>/dev/null || true
+}
+
+# ============================================================
+# Host IP helper
+# ============================================================
+
+write_host_ip_file() {
+    local host_ip=""
+
+    host_ip="$(ip -4 addr show scope global \
+        | grep -oP '(?<=inet\s)\d+(\.\d+){3}' \
+        | head -n 1 || true)"
+
+    if [[ -z "${host_ip}" ]]; then
+        host_ip="$(hostname -I | awk '{print $1}')"
+    fi
+
+    if [[ -z "${host_ip}" ]]; then
+        host_ip="Unknown"
+    fi
+
+    printf '%s' "${host_ip}" > "${HOST_IP_FILE}.tmp"
+    mv "${HOST_IP_FILE}.tmp" "${HOST_IP_FILE}"
+    chmod 644 "${HOST_IP_FILE}"
+
+    log "Host IP updated: ${host_ip}"
 }
 
 # ============================================================
@@ -204,6 +263,8 @@ EOF
     mv "${temporary}" "${VERSIONS_FILE}"
     chmod 644 "${VERSIONS_FILE}"
 
+    write_host_ip_file
+
     log "Version information updated:"
     log "  Zigbee2MQTT: installed=${zigbee_installed}, latest=${zigbee_latest}"
     log "  Node-RED: installed=${node_red_installed}, latest=${node_red_latest}"
@@ -239,22 +300,53 @@ run_service_action() {
     case "${action}" in
         Start)
             log "Starting ${container}"
-            docker start "${container}"
+            docker start "${container}" || log "Failed to start ${container}"
             ;;
+
         Stop)
             log "Stopping ${container}"
-            docker stop "${container}"
+            docker stop "${container}" || log "Failed to stop ${container}"
             ;;
+
         Restart)
             log "Restarting ${container}"
-            docker restart "${container}"
+            docker restart "${container}" || log "Failed to restart ${container}"
             ;;
-        Update)
-            log "Updating ${container}"
 
-            docker pull "${container}" || true
-            docker restart "${container}" || true
+        Update)
+            local compose_service
+            local compose_project
+            local compose_file
+            local compose_directory
+
+            compose_service="$(docker_compose_service "${container}")"
+            compose_project="$(docker_compose_project "${container}")"
+            compose_file="$(docker_compose_file "${container}")"
+            compose_directory="$(docker_compose_directory "${container}")"
+
+            if [[ -z "${compose_service}" || -z "${compose_project}" || -z "${compose_file}" || -z "${compose_directory}" ]]; then
+                log "Unable to determine Docker Compose details for ${container}"
+                log "Update skipped"
+                return
+            fi
+
+            log "Updating ${container} using Docker Compose"
+
+            docker compose \
+                -p "${compose_project}" \
+                --project-directory "${compose_directory}" \
+                -f "${compose_file}" \
+                pull "${compose_service}" \
+                || log "Failed to pull ${compose_service}"
+
+            docker compose \
+                -p "${compose_project}" \
+                --project-directory "${compose_directory}" \
+                -f "${compose_file}" \
+                up -d "${compose_service}" \
+                || log "Failed to recreate ${compose_service}"
             ;;
+
         *)
             log "Unknown action for ${service}: ${action}"
             ;;
@@ -268,6 +360,7 @@ run_service_action() {
 # ============================================================
 
 add_mosquitto_user() {
+    local command_file="$1"
     local username=""
     local password=""
 
@@ -287,18 +380,21 @@ add_mosquitto_user() {
         return
     fi
 
-    log "Adding or updating Mosquitto user: ${username}"
+    log "Replacing Mosquitto credentials with user: ${username}"
 
-    docker exec "${MOSQUITTO_CONTAINER}" \
-        mosquitto_passwd -b \
+    if ! docker exec "${MOSQUITTO_CONTAINER}" \
+        mosquitto_passwd -b -c \
         "${MOSQUITTO_PASSWORD_FILE}" \
         "${username}" \
-        "${password}"
+        "${password}"; then
+        log "Failed to update Mosquitto password file"
+        return
+    fi
 
-    docker exec "${MOSQUITTO_CONTAINER}" \
-        mosquitto_ctrl dynsec reload 2>/dev/null || true
-
-    docker restart "${MOSQUITTO_CONTAINER}"
+    if ! docker restart "${MOSQUITTO_CONTAINER}"; then
+        log "Failed to restart Mosquitto"
+        return
+    fi
 
     printf 'username=%s\npassword=%s\n' \
         "${username}" \
@@ -320,6 +416,9 @@ process_command_file() {
     local command_name
     local service=""
     local action=""
+
+    # Ignore files that disappeared before processing.
+    [[ -f "${command_file}" ]] || return
 
     command_name="$(basename "${command_file}")"
 
@@ -355,7 +454,7 @@ process_command_file() {
             ;;
 
         Mosquitto-AddUser)
-            add_mosquitto_user
+            add_mosquitto_user "${command_file}"
             rm -f "${command_file}"
             ;;
 
@@ -384,16 +483,41 @@ process_commands() {
 }
 
 # ============================================================
-# Main loop
+# Main loop: immediate inotify processing
 # ============================================================
 
 log "Meek.io action handler started"
 
+# Process commands left behind before a restart.
+process_commands
+
+# Refresh versions and host IP at startup.
 write_versions_file
 
-while true; do
-    process_commands
-    write_versions_file
+LAST_VERSION_UPDATE="$(date +%s)"
+LAST_FALLBACK_SCAN="$(date +%s)"
 
-    sleep "${CHECK_INTERVAL_SECONDS}"
+while true; do
+    event_file="$(inotifywait -q \
+        -e close_write,moved_to,create \
+        --format '%w%f' \
+        "${COMMANDS_DIR}")"
+
+    if [[ -f "${event_file}" ]] && [[ "$(basename "${event_file}")" != .* ]]; then
+        process_command_file "${event_file}"
+    fi
+
+    now="$(date +%s)"
+
+    # Fallback scan protects against a missed filesystem event.
+    if (( now - LAST_FALLBACK_SCAN >= FALLBACK_SCAN_SECONDS )); then
+        process_commands
+        LAST_FALLBACK_SCAN="${now}"
+    fi
+
+    # Refresh version information at most once per hour.
+    if (( now - LAST_VERSION_UPDATE >= 3600 )); then
+        write_versions_file
+        LAST_VERSION_UPDATE="${now}"
+    fi
 done
