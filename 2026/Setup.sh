@@ -28,3 +28,9 @@ EOF
 
 systemctl daemon-reload
 systemctl enable --now meek-action-handler.service
+
+
+chown -R 1000:1000 /meek-io/meek/commands
+chmod 755 /meek-io/meek/commands
+chmod 755 /meek-io/meek/commands/MQTT
+chmod 644 /meek-io/meek/commands/MQTT/current-credentials.txt
