@@ -1,5 +1,13 @@
 [
     {
+        "id": "142262a004185d15",
+        "type": "tab",
+        "label": "Meek-io",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
         "id": "meek_zigbee_lwt",
         "type": "mqtt in",
         "z": "142262a004185d15",
@@ -12,8 +20,28 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 110,
-        "y": 300,
+        "x": 170,
+        "y": 260,
+        "wires": [
+            [
+                "meek_validate_lwt"
+            ]
+        ]
+    },
+    {
+        "id": "meek_validate_lwt",
+        "type": "function",
+        "z": "142262a004185d15",
+        "name": "Validate LWT State",
+        "func": "const state = (msg.payload || '').trim().toLowerCase();\n\nif (state !== 'online' && state !== 'offline') {\n    return null;\n}\n\nmsg.payload = state === 'online' ? 'Online' : 'Offline';\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 260,
         "wires": [
             [
                 "meek_state_switch"
@@ -42,8 +70,8 @@
         "checkall": "false",
         "repair": false,
         "outputs": 2,
-        "x": 340,
-        "y": 300,
+        "x": 620,
+        "y": 260,
         "wires": [
             [
                 "meek_start_delay"
@@ -70,13 +98,108 @@
         "drop": true,
         "allowrate": false,
         "outputs": 1,
-        "x": 580,
-        "y": 260,
+        "x": 850,
+        "y": 220,
         "wires": [
             [
-                "meek_start_change"
+                "meek_read_host_ip"
             ]
         ]
+    },
+    {
+        "id": "meek_read_host_ip",
+        "type": "file in",
+        "z": "142262a004185d15",
+        "name": "Read Host IP File",
+        "filename": "/config/www/actions/MQTT/host-ip.txt",
+        "filenameType": "str",
+        "format": "utf8",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "none",
+        "allProps": false,
+        "x": 1080,
+        "y": 220,
+        "wires": [
+            [
+                "meek_build_tasmota_payload"
+            ]
+        ]
+    },
+    {
+        "id": "meek_build_tasmota_payload",
+        "type": "function",
+        "z": "142262a004185d15",
+        "name": "Build tcpconnect Payload",
+        "func": "const ip = (msg.payload || '').trim().split(' ')[0];\nconst parts = ip.split('.');\n\nif (parts.length !== 4) {\n    node.error('Invalid host IP: ' + ip, msg);\n    return null;\n}\n\nconst lastOctet = parts[3];\n\nmsg.topic = 'cmnd/Meek_Zigbee/tcpconnect';\nmsg.payload = lastOctet + '02,mqtt.meek-io.com';\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1330,
+        "y": 220,
+        "wires": [
+            [
+                "meek_tasmota_publish",
+                "meek_start_file"
+            ]
+        ]
+    },
+    {
+        "id": "meek_tasmota_publish",
+        "type": "mqtt out",
+        "z": "142262a004185d15",
+        "name": "Send Tasmota TCP Connect",
+        "topic": "",
+        "qos": "1",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "086228861fdaf107",
+        "x": 1570,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "meek_start_file",
+        "type": "file",
+        "z": "142262a004185d15",
+        "name": "Queue Zigbee Start",
+        "filename": "/config/www/actions/Zigbee2MQTT-Start",
+        "filenameType": "str",
+        "appendNewline": false,
+        "createDir": true,
+        "overwriteFile": "true",
+        "encoding": "utf8",
+        "x": 1570,
+        "y": 240,
+        "wires": [
+            [
+                "meek_start_debug"
+            ]
+        ]
+    },
+    {
+        "id": "meek_start_debug",
+        "type": "debug",
+        "z": "142262a004185d15",
+        "name": "Start command queued",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1810,
+        "y": 240,
+        "wires": []
     },
     {
         "id": "meek_stop_delay",
@@ -95,83 +218,13 @@
         "drop": true,
         "allowrate": false,
         "outputs": 1,
-        "x": 580,
-        "y": 340,
+        "x": 850,
+        "y": 320,
         "wires": [
             [
                 "meek_stop_change"
             ]
         ]
-    },
-    {
-        "id": "meek_start_change",
-        "type": "change",
-        "z": "142262a004185d15",
-        "name": "Prepare Start Command",
-        "rules": [
-            {
-                "t": "set",
-                "p": "payload",
-                "pt": "msg",
-                "to": "",
-                "tot": "str"
-            }
-        ],
-        "x": 820,
-        "y": 260,
-        "wires": [
-            [
-                "meek_start_file",
-                "meek_tasmota_topic"
-            ]
-        ]
-    },
-    {
-        "id": "meek_tasmota_topic",
-        "type": "change",
-        "z": "142262a004185d15",
-        "name": "Set Tasmota Command",
-        "rules": [
-            {
-                "t": "set",
-                "p": "topic",
-                "pt": "msg",
-                "to": "cmnd/Meek_Zigbee/tcpconnect",
-                "tot": "str"
-            },
-            {
-                "t": "set",
-                "p": "payload",
-                "pt": "msg",
-                "to": "10402,mqtt.meek-io.com",
-                "tot": "str"
-            }
-        ],
-        "x": 830,
-        "y": 200,
-        "wires": [
-            [
-                "meek_tasmota_publish"
-            ]
-        ]
-    },
-    {
-        "id": "meek_tasmota_publish",
-        "type": "mqtt out",
-        "z": "142262a004185d15",
-        "name": "Send Tasmota TCP Connect",
-        "topic": "",
-        "qos": "1",
-        "retain": "false",
-        "respTopic": "",
-        "contentType": "",
-        "userProps": "",
-        "correl": "",
-        "expiry": "",
-        "broker": "086228861fdaf107",
-        "x": 1090,
-        "y": 200,
-        "wires": []
     },
     {
         "id": "meek_stop_change",
@@ -187,30 +240,11 @@
                 "tot": "str"
             }
         ],
-        "x": 820,
-        "y": 340,
+        "x": 1090,
+        "y": 320,
         "wires": [
             [
                 "meek_stop_file"
-            ]
-        ]
-    },
-    {
-        "id": "meek_start_file",
-        "type": "file",
-        "z": "142262a004185d15",
-        "name": "Queue Zigbee Start",
-        "filename": "/config/www/actions/Zigbee2MQTT-Start",
-        "filenameType": "str",
-        "appendNewline": false,
-        "createDir": true,
-        "overwriteFile": "true",
-        "encoding": "utf8",
-        "x": 1060,
-        "y": 260,
-        "wires": [
-            [
-                "meek_start_debug"
             ]
         ]
     },
@@ -225,30 +259,13 @@
         "createDir": true,
         "overwriteFile": "true",
         "encoding": "utf8",
-        "x": 1060,
-        "y": 340,
+        "x": 1330,
+        "y": 320,
         "wires": [
             [
                 "meek_stop_debug"
             ]
         ]
-    },
-    {
-        "id": "meek_start_debug",
-        "type": "debug",
-        "z": "142262a004185d15",
-        "name": "Start command queued",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 1300,
-        "y": 260,
-        "wires": []
     },
     {
         "id": "meek_stop_debug",
@@ -263,8 +280,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1300,
-        "y": 340,
+        "x": 1570,
+        "y": 320,
         "wires": []
     },
     {
