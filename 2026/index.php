@@ -6,7 +6,11 @@ session_start();
 header('Cache-Control: no-store');
 
 $actionsDir = '/config/www/actions';
+$versionsFile = '/config/www/actions/MQTT/versions.json';
+$hostIpFile = '/config/www/actions/MQTT/host-ip.txt';
+
 $zigbeeContainerName = 'zigbee2mqtt';
+$nodeRedContainerName = 'node-red-node-red-1';
 
 /*
  * Plaintext credentials file created by the host-side action handler
@@ -105,54 +109,6 @@ function publishCommand(
     return true;
 }
 
-function dockerGet(string $path): ?array
-{
-    $socket = '/var/run/docker.sock';
-    $url = 'http://localhost' . $path;
-    $response = false;
-
-    if (!file_exists($socket)) {
-        return null;
-    }
-
-    if (
-        function_exists('curl_init') &&
-        defined('CURLOPT_UNIX_SOCKET_PATH')
-    ) {
-        $curl = curl_init($url);
-
-        if ($curl === false) {
-            return null;
-        }
-
-        curl_setopt_array($curl, [
-            CURLOPT_UNIX_SOCKET_PATH => $socket,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CONNECTTIMEOUT => 2,
-            CURLOPT_TIMEOUT => 3,
-            CURLOPT_FAILONERROR => true,
-        ]);
-
-        $response = curl_exec($curl);
-        curl_close($curl);
-    } elseif (function_exists('shell_exec')) {
-        $command = 'curl --silent --fail --max-time 3'
-            . ' --unix-socket ' . escapeshellarg($socket)
-            . ' ' . escapeshellarg($url)
-            . ' 2>/dev/null';
-
-        $response = @shell_exec($command);
-    }
-
-    if (!is_string($response) || $response === '') {
-        return null;
-    }
-
-    $data = json_decode($response, true);
-
-    return is_array($data) ? $data : null;
-}
-
 $message = '';
 $messageType = 'success';
 
@@ -245,6 +201,105 @@ if (isset($_SESSION['flash'])) {
 }
 
 /*
+ * Read version information created by meek-action-handler.sh.
+ *
+ * Host path:
+ * /meek-io/meek/commands/MQTT/versions.json
+ *
+ * Container path:
+ * /config/www/actions/MQTT/versions.json
+ */
+$versions = [
+    'zigbee2mqtt' => [
+        'installed' => 'Unknown',
+        'latest' => 'Unknown',
+        'update_available' => false,
+    ],
+    'node-red' => [
+        'installed' => 'Unknown',
+        'latest' => 'Unknown',
+        'update_available' => false,
+    ],
+];
+
+if (is_readable($versionsFile)) {
+    $versionsText = @file_get_contents($versionsFile);
+
+    if (is_string($versionsText) && $versionsText !== '') {
+        $decoded = json_decode($versionsText, true);
+
+        if (is_array($decoded)) {
+            foreach (['zigbee2mqtt', 'node-red'] as $service) {
+                if (
+                    isset($decoded[$service]) &&
+                    is_array($decoded[$service])
+                ) {
+                    $versions[$service] = array_merge(
+                        $versions[$service],
+                        $decoded[$service]
+                    );
+                }
+            }
+        }
+    }
+}
+
+$zigbeeInstalled = (string) $versions['zigbee2mqtt']['installed'];
+$zigbeeLatest = (string) $versions['zigbee2mqtt']['latest'];
+$zigbeeUpdateAvailable = (bool) $versions['zigbee2mqtt']['update_available'];
+
+$nodeRedInstalled = (string) $versions['node-red']['installed'];
+$nodeRedLatest = (string) $versions['node-red']['latest'];
+$nodeRedUpdateAvailable = (bool) $versions['node-red']['update_available'];
+
+/*
+ * Read the host IP and extract the final octet.
+ *
+ * Host path:
+ * /meek-io/meek/commands/MQTT/host-ip.txt
+ *
+ * Container path:
+ * /config/www/actions/MQTT/host-ip.txt
+ *
+ * Example:
+ * 10.10.10.104 -> 104
+ */
+$hostIp = '';
+$hostLastOctet = '';
+
+if (is_readable($hostIpFile)) {
+    $hostIp = trim(
+        (string) @file_get_contents($hostIpFile)
+    );
+
+    if (
+        preg_match(
+            '/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/',
+            $hostIp,
+            $ipMatches
+        )
+    ) {
+        $hostLastOctet = $ipMatches[4];
+    }
+}
+
+/*
+ * Build the displayed MQTT port labels from the final IP octet.
+ *
+ * Example:
+ * IP 10.10.10.104
+ * Secure MQTT port: 10400
+ * Unsecure MQTT port: 10401
+ */
+$secureMqttPortLabel = $hostLastOctet !== ''
+    ? $hostLastOctet . '00'
+    : 'Unknown';
+
+$unsecureMqttPortLabel = $hostLastOctet !== ''
+    ? $hostLastOctet . '01'
+    : 'Unknown';
+
+/*
  * Read the current Mosquitto credentials written by the host handler.
  *
  * Expected file format:
@@ -280,28 +335,6 @@ if (is_readable($mosquittoCredentialsFile)) {
         $mosquittoCredentialsFound =
             $mosquittoUsername !== '' &&
             $mosquittoPassword !== '';
-    }
-}
-
-/* Zigbee2MQTT version, with the image reference as a fallback. */
-$zigbeeVersion = 'Unknown';
-$zigbeeImageFallback = false;
-
-$container = dockerGet(
-    '/containers/' . rawurlencode($zigbeeContainerName) . '/json'
-);
-
-if ($container !== null) {
-    $version = $container['Config']['Labels']
-        ['org.opencontainers.image.version'] ?? '';
-
-    $image = $container['Config']['Image'] ?? '';
-
-    if (is_string($version) && $version !== '') {
-        $zigbeeVersion = $version;
-    } elseif (is_string($image) && $image !== '') {
-        $zigbeeVersion = $image;
-        $zigbeeImageFallback = true;
     }
 }
 
@@ -501,6 +534,16 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
             overflow-wrap: anywhere;
         }
 
+        .update-available {
+            color: #b91c1c;
+            font-weight: 700;
+        }
+
+        .up-to-date {
+            color: #166534;
+            font-weight: 700;
+        }
+
         .note {
             margin: 12px 0 0;
             font-size: 0.78rem;
@@ -522,7 +565,7 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
         }
 
         .mqtt-ports {
-            flex: 0 1 210px;
+            flex: 0 1 240px;
             min-width: 0;
             margin-left: auto;
             text-align: left;
@@ -632,14 +675,33 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                     </p>
                 <?php elseif ($category === 'Zigbee2MQTT'): ?>
                     <p class="info">
-                        <?= $zigbeeImageFallback
-                            ? 'Container image:'
-                            : 'Running version:' ?>
-                        <?= escape($zigbeeVersion) ?>
+                        Installed: <?= escape($zigbeeInstalled) ?><br>
+                        Latest: <?= escape($zigbeeLatest) ?><br>
+
+                        <?php if ($zigbeeUpdateAvailable): ?>
+                            <span class="update-available">
+                                Update available
+                            </span>
+                        <?php else: ?>
+                            <span class="up-to-date">
+                                Up to date
+                            </span>
+                        <?php endif; ?>
                     </p>
                 <?php elseif ($category === 'Node-RED'): ?>
                     <p class="info">
-                        Flow editor and automation service.
+                        Installed: <?= escape($nodeRedInstalled) ?><br>
+                        Latest: <?= escape($nodeRedLatest) ?><br>
+
+                        <?php if ($nodeRedUpdateAvailable): ?>
+                            <span class="update-available">
+                                Update available
+                            </span>
+                        <?php else: ?>
+                            <span class="up-to-date">
+                                Up to date
+                            </span>
+                        <?php endif; ?>
                     </p>
                 <?php endif; ?>
 
@@ -718,14 +780,17 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                 <h2>Mosquitto</h2>
 
                 <div class="mqtt-ports">
-                    <div>Systemwide MQTT port 1883</div>
-
                     <div>
-                        Secure MQTT port 1884
-                        <span>With username and password</span>
+                        Systemwide MQTT port 1883
                     </div>
 
-                    <div>Unsecure MQTT port 1885</div>
+                    <div>
+                        Secure MQTT port <?= escape($secureMqttPortLabel) ?>
+                    </div>
+
+                    <div>
+                        Unsecure MQTT port <?= escape($unsecureMqttPortLabel) ?>
+                    </div>
                 </div>
             </div>
 
