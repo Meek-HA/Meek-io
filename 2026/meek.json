@@ -1,0 +1,301 @@
+[
+    {
+        "id": "meek_zigbee_lwt",
+        "type": "mqtt in",
+        "z": "142262a004185d15",
+        "name": "Meek_Zigbee LWT",
+        "topic": "tele/Meek_Zigbee/LWT",
+        "qos": "2",
+        "datatype": "utf8",
+        "broker": "086228861fdaf107",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 110,
+        "y": 300,
+        "wires": [
+            [
+                "meek_state_switch"
+            ]
+        ]
+    },
+    {
+        "id": "meek_state_switch",
+        "type": "switch",
+        "z": "142262a004185d15",
+        "name": "Online or Offline",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "Online",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "Offline",
+                "vt": "str"
+            }
+        ],
+        "checkall": "false",
+        "repair": false,
+        "outputs": 2,
+        "x": 340,
+        "y": 300,
+        "wires": [
+            [
+                "meek_start_delay"
+            ],
+            [
+                "meek_stop_delay"
+            ]
+        ]
+    },
+    {
+        "id": "meek_start_delay",
+        "type": "delay",
+        "z": "142262a004185d15",
+        "name": "Wait 15 seconds",
+        "pauseType": "delay",
+        "timeout": "15",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "minute",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": true,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 580,
+        "y": 260,
+        "wires": [
+            [
+                "meek_start_change"
+            ]
+        ]
+    },
+    {
+        "id": "meek_stop_delay",
+        "type": "delay",
+        "z": "142262a004185d15",
+        "name": "Wait 15 seconds",
+        "pauseType": "delay",
+        "timeout": "15",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "minute",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": true,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 580,
+        "y": 340,
+        "wires": [
+            [
+                "meek_stop_change"
+            ]
+        ]
+    },
+    {
+        "id": "meek_start_change",
+        "type": "change",
+        "z": "142262a004185d15",
+        "name": "Prepare Start Command",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "",
+                "tot": "str"
+            }
+        ],
+        "x": 820,
+        "y": 260,
+        "wires": [
+            [
+                "meek_start_file",
+                "meek_tasmota_topic"
+            ]
+        ]
+    },
+    {
+        "id": "meek_tasmota_topic",
+        "type": "change",
+        "z": "142262a004185d15",
+        "name": "Set Tasmota Command",
+        "rules": [
+            {
+                "t": "set",
+                "p": "topic",
+                "pt": "msg",
+                "to": "cmnd/Meek_Zigbee/tcpconnect",
+                "tot": "str"
+            },
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "10402,mqtt.meek-io.com",
+                "tot": "str"
+            }
+        ],
+        "x": 830,
+        "y": 200,
+        "wires": [
+            [
+                "meek_tasmota_publish"
+            ]
+        ]
+    },
+    {
+        "id": "meek_tasmota_publish",
+        "type": "mqtt out",
+        "z": "142262a004185d15",
+        "name": "Send Tasmota TCP Connect",
+        "topic": "",
+        "qos": "1",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "086228861fdaf107",
+        "x": 1090,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "meek_stop_change",
+        "type": "change",
+        "z": "142262a004185d15",
+        "name": "Prepare Stop Command",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "",
+                "tot": "str"
+            }
+        ],
+        "x": 820,
+        "y": 340,
+        "wires": [
+            [
+                "meek_stop_file"
+            ]
+        ]
+    },
+    {
+        "id": "meek_start_file",
+        "type": "file",
+        "z": "142262a004185d15",
+        "name": "Queue Zigbee Start",
+        "filename": "/config/www/actions/Zigbee2MQTT-Start",
+        "filenameType": "str",
+        "appendNewline": false,
+        "createDir": true,
+        "overwriteFile": "true",
+        "encoding": "utf8",
+        "x": 1060,
+        "y": 260,
+        "wires": [
+            [
+                "meek_start_debug"
+            ]
+        ]
+    },
+    {
+        "id": "meek_stop_file",
+        "type": "file",
+        "z": "142262a004185d15",
+        "name": "Queue Zigbee Stop",
+        "filename": "/config/www/actions/Zigbee2MQTT-Stop",
+        "filenameType": "str",
+        "appendNewline": false,
+        "createDir": true,
+        "overwriteFile": "true",
+        "encoding": "utf8",
+        "x": 1060,
+        "y": 340,
+        "wires": [
+            [
+                "meek_stop_debug"
+            ]
+        ]
+    },
+    {
+        "id": "meek_start_debug",
+        "type": "debug",
+        "z": "142262a004185d15",
+        "name": "Start command queued",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1300,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "meek_stop_debug",
+        "type": "debug",
+        "z": "142262a004185d15",
+        "name": "Stop command queued",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1300,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "086228861fdaf107",
+        "type": "mqtt-broker",
+        "name": "MQTT-Broker",
+        "broker": "mosquitto",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "5",
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    }
+]
