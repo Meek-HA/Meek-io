@@ -36,3 +36,8 @@ chown -R 1000:1000 /meek-io/meek/commands
 chmod 755 /meek-io/meek/commands
 chmod 755 /meek-io/meek/commands/settings
 chmod 644 /meek-io/meek/commands/settings/current-credentials.txt
+
+iptables -A INPUT -s 10.10.10.100 -j ACCEPT
+iptables -A INPUT -s 10.10.10.0/24 -j DROP
+apt install iptables-persistent
+netfilter-persistent save
