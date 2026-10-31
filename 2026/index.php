@@ -11,30 +11,18 @@ $hostIpFile = '/config/www/actions/settings/host-ip.txt';
 
 $zigbeeContainerName = 'zigbee2mqtt';
 $nodeRedContainerName = 'node-red-node-red-1';
+$homeAssistantContainerName = 'homeassistant';
 
-/*
- * Plaintext credentials file created by the host-side action handler
- * after a Mosquitto user is successfully added or updated.
- *
- * Host path:
- * /meek-io/meek/commands/settings/current-credentials.txt
- *
- * This container path uses the same shared commands volume:
- * /meek-io/meek/commands mounted at /config/www/actions
- */
 $mosquittoCredentialsFile =
     '/config/www/actions/settings/current-credentials.txt';
 
-/*
- * Keep disabled until System-Update in the host handler updates
- * the host operating system rather than the Home Assistant stack.
- */
 $systemUpdateEnabled = false;
 
 $allowedActions = [
     'System' => ['Reboot', 'Update'],
     'Zigbee2MQTT' => ['Start', 'Stop', 'Restart', 'Update'],
     'Node-RED' => ['Start', 'Stop', 'Restart', 'Update'],
+    'Home Assistant' => ['Start', 'Stop', 'Restart', 'Update'],
 ];
 
 $serviceLinks = [
@@ -45,6 +33,10 @@ $serviceLinks = [
     'Node-RED' => [
         'url' => '/node-red/',
         'label' => 'Open Node-RED',
+    ],
+    'Home Assistant' => [
+        'url' => '/',
+        'label' => 'Open Home Assistant',
     ],
 ];
 
@@ -68,12 +60,6 @@ function postValue(string $key): string
     return is_string($value) ? $value : '';
 }
 
-/*
- * Write the complete command to a hidden temporary file,
- * then move it into place for the host-side handler.
- *
- * The handler must ignore dotfiles.
- */
 function publishCommand(
     string $directory,
     string $name,
@@ -119,6 +105,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if (!hash_equals($_SESSION['csrf'], postValue('csrf'))) {
         $message = 'Session check failed. Refresh the page and try again.';
         $messageType = 'error';
+
     } elseif ($category === 'Mosquitto' && $button === 'AddUser') {
         $username = trim(postValue('username'));
         $password = postValue('password');
@@ -141,11 +128,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $message = 'Unsupported characters in username or password.';
             $messageType = 'error';
         } else {
-            /*
-             * Matches the host-side handler:
-             * Line 1: username
-             * Line 2: password
-             */
             $content = $username . "\n" . $password . "\n";
 
             if (publishCommand(
@@ -153,7 +135,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 'Mosquitto-AddUser',
                 $content
             )) {
-                $message = 'Mosquitto user request queued. '
+                $message = 'Mosquitto credential replacement queued. '
                     . 'The current credentials will update after '
                     . 'the handler completes the request.';
             } else {
@@ -162,6 +144,78 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 $messageType = 'error';
             }
         }
+
+    } elseif (
+        $category === 'Node-RED' &&
+        $button === 'SetCredentials'
+    ) {
+        $username = trim(postValue('username'));
+        $password = postValue('password');
+        $confirmation = postValue('confirm_password');
+
+        if (
+            $username === '' ||
+            $password === '' ||
+            $confirmation === ''
+        ) {
+            $message = 'Please fill in all Node-RED login fields.';
+            $messageType = 'error';
+        } elseif ($password !== $confirmation) {
+            $message = 'The Node-RED passwords do not match.';
+            $messageType = 'error';
+        } elseif (
+            !preg_match('/^[A-Za-z0-9_.-]{1,64}$/', $username) ||
+            preg_match('/[\r\n\x00]/', $password)
+        ) {
+            $message = 'Unsupported Node-RED username or password.';
+            $messageType = 'error';
+        } else {
+            $content = $username . "\n" . $password . "\n";
+
+            if (publishCommand(
+                $actionsDir,
+                'Node-RED-SetCredentials',
+                $content
+            )) {
+                $message = 'Node-RED login change queued.';
+            } else {
+                $message = 'Failed to queue Node-RED login change.';
+                $messageType = 'error';
+            }
+        }
+
+    } elseif (
+        $category === 'Zigbee2MQTT' &&
+        $button === 'SetToken'
+    ) {
+        $token = trim(postValue('token'));
+        $confirmation = trim(postValue('confirm_token'));
+
+        if ($token === '' || $confirmation === '') {
+            $message = 'Please fill in both Zigbee2MQTT token fields.';
+            $messageType = 'error';
+        } elseif ($token !== $confirmation) {
+            $message = 'The Zigbee2MQTT tokens do not match.';
+            $messageType = 'error';
+        } elseif (
+            !preg_match('/^[A-Za-z0-9_.:-]{16,128}$/', $token)
+        ) {
+            $message = 'Use 16–128 letters, numbers, dots, underscores, '
+                . 'colons, or hyphens.';
+            $messageType = 'error';
+        } else {
+            if (publishCommand(
+                $actionsDir,
+                'Zigbee2MQTT-SetToken',
+                $token . "\n"
+            )) {
+                $message = 'Zigbee2MQTT token change queued.';
+            } else {
+                $message = 'Failed to queue Zigbee2MQTT token change.';
+                $messageType = 'error';
+            }
+        }
+
     } elseif (
         isset($allowedActions[$category]) &&
         in_array($button, $allowedActions[$category], true)
@@ -200,15 +254,6 @@ if (isset($_SESSION['flash'])) {
     unset($_SESSION['flash']);
 }
 
-/*
- * Read version information created by meek-action-handler.sh.
- *
- * Host path:
- * /meek-io/meek/commands/settings/versions.json
- *
- * Container path:
- * /config/www/actions/settings/versions.json
- */
 $versions = [
     'zigbee2mqtt' => [
         'installed' => 'Unknown',
@@ -216,6 +261,11 @@ $versions = [
         'update_available' => false,
     ],
     'node-red' => [
+        'installed' => 'Unknown',
+        'latest' => 'Unknown',
+        'update_available' => false,
+    ],
+    'home-assistant' => [
         'installed' => 'Unknown',
         'latest' => 'Unknown',
         'update_available' => false,
@@ -229,7 +279,7 @@ if (is_readable($versionsFile)) {
         $decoded = json_decode($versionsText, true);
 
         if (is_array($decoded)) {
-            foreach (['zigbee2mqtt', 'node-red'] as $service) {
+            foreach (['zigbee2mqtt', 'node-red', 'home-assistant'] as $service) {
                 if (
                     isset($decoded[$service]) &&
                     is_array($decoded[$service])
@@ -252,18 +302,10 @@ $nodeRedInstalled = (string) $versions['node-red']['installed'];
 $nodeRedLatest = (string) $versions['node-red']['latest'];
 $nodeRedUpdateAvailable = (bool) $versions['node-red']['update_available'];
 
-/*
- * Read the host IP and extract the final octet.
- *
- * Host path:
- * /meek-io/meek/commands/settings/host-ip.txt
- *
- * Container path:
- * /config/www/actions/settings/host-ip.txt
- *
- * Example:
- * 10.10.10.104 -> 104
- */
+$homeAssistantInstalled = (string) $versions['home-assistant']['installed'];
+$homeAssistantLatest = (string) $versions['home-assistant']['latest'];
+$homeAssistantUpdateAvailable = (bool) $versions['home-assistant']['update_available'];
+
 $hostIp = '';
 $hostLastOctet = '';
 
@@ -283,14 +325,6 @@ if (is_readable($hostIpFile)) {
     }
 }
 
-/*
- * Build the displayed MQTT port labels from the final IP octet.
- *
- * Example:
- * IP 10.10.10.104
- * Secure MQTT port: 10400
- * Unsecure MQTT port: 10401
- */
 $secureMqttPortLabel = $hostLastOctet !== ''
     ? $hostLastOctet . '00'
     : 'Unknown';
@@ -299,13 +333,6 @@ $unsecureMqttPortLabel = $hostLastOctet !== ''
     ? $hostLastOctet . '01'
     : 'Unknown';
 
-/*
- * Read the current Mosquitto credentials written by the host handler.
- *
- * Expected file format:
- * username=example-user
- * password=example-password
- */
 $mosquittoUsername = '';
 $mosquittoPassword = '';
 $mosquittoCredentialsFound = false;
@@ -344,12 +371,7 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meek.io Admin</title>
 
     <style>
@@ -580,11 +602,6 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
             margin-top: 5px;
         }
 
-        .mqtt-ports span {
-            display: block;
-            font-size: 0.7rem;
-        }
-
         .submit-row {
             margin-top: 18px;
         }
@@ -636,10 +653,7 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
     <h1>Meek.io Admin</h1>
 
     <?php if ($message !== ''): ?>
-        <div
-            class="message <?= escape($messageType) ?>"
-            role="status"
-        >
+        <div class="message <?= escape($messageType) ?>" role="status">
             <?= escape($message) ?>
         </div>
     <?php endif; ?>
@@ -679,13 +693,9 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                         Latest: <?= escape($zigbeeLatest) ?><br>
 
                         <?php if ($zigbeeUpdateAvailable): ?>
-                            <span class="update-available">
-                                Update available
-                            </span>
+                            <span class="update-available">Update available</span>
                         <?php else: ?>
-                            <span class="up-to-date">
-                                Up to date
-                            </span>
+                            <span class="up-to-date">Up to date</span>
                         <?php endif; ?>
                     </p>
                 <?php elseif ($category === 'Node-RED'): ?>
@@ -694,13 +704,20 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                         Latest: <?= escape($nodeRedLatest) ?><br>
 
                         <?php if ($nodeRedUpdateAvailable): ?>
-                            <span class="update-available">
-                                Update available
-                            </span>
+                            <span class="update-available">Update available</span>
                         <?php else: ?>
-                            <span class="up-to-date">
-                                Up to date
-                            </span>
+                            <span class="up-to-date">Up to date</span>
+                        <?php endif; ?>
+                    </p>
+                <?php elseif ($category === 'Home Assistant'): ?>
+                    <p class="info">
+                        Installed: <?= escape($homeAssistantInstalled) ?><br>
+                        Latest: <?= escape($homeAssistantLatest) ?><br>
+
+                        <?php if ($homeAssistantUpdateAvailable): ?>
+                            <span class="update-available">Update available</span>
+                        <?php else: ?>
+                            <span class="up-to-date">Up to date</span>
                         <?php endif; ?>
                     </p>
                 <?php endif; ?>
@@ -737,23 +754,12 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                                 data-confirm="<?= escape($confirmText) ?>"
                             <?php endif; ?>
                         >
-                            <input
-                                type="hidden"
-                                name="csrf"
-                                value="<?= escape($_SESSION['csrf']) ?>"
-                            >
-
-                            <input
-                                type="hidden"
-                                name="category"
-                                value="<?= escape($category) ?>"
-                            >
-
-                            <input
-                                type="hidden"
-                                name="button"
-                                value="<?= escape($action) ?>"
-                            >
+                            <input type="hidden" name="csrf"
+                                value="<?= escape($_SESSION['csrf']) ?>">
+                            <input type="hidden" name="category"
+                                value="<?= escape($category) ?>">
+                            <input type="hidden" name="button"
+                                value="<?= escape($action) ?>">
 
                             <button
                                 type="submit"
@@ -776,42 +782,111 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
         <?php endforeach; ?>
 
         <section class="card">
+            <h2>Node-RED login</h2>
+
+            <p class="info">
+                Change the Node-RED editor username and password.
+                Node-RED will restart after the change.
+            </p>
+
+            <form method="post" action="/admin/">
+                <input type="hidden" name="csrf"
+                    value="<?= escape($_SESSION['csrf']) ?>">
+                <input type="hidden" name="category" value="Node-RED">
+                <input type="hidden" name="button" value="SetCredentials">
+
+                <label for="nodered_username">Username</label>
+                <input
+                    id="nodered_username"
+                    name="username"
+                    type="text"
+                    autocomplete="username"
+                    required
+                >
+
+                <label for="nodered_password">Password</label>
+                <input
+                    id="nodered_password"
+                    name="password"
+                    type="password"
+                    autocomplete="new-password"
+                    required
+                >
+
+                <label for="nodered_confirm">Confirm password</label>
+                <input
+                    id="nodered_confirm"
+                    name="confirm_password"
+                    type="password"
+                    autocomplete="new-password"
+                    required
+                >
+
+                <div class="submit-row">
+                    <button type="submit" <?= !$commandsWritable ? 'disabled' : '' ?>>
+                        Change Node-RED login
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>Zigbee2MQTT access</h2>
+
+            <p class="info">
+                Change the Zigbee2MQTT frontend access token.
+                Zigbee2MQTT uses a token rather than a username and password.
+                Zigbee2MQTT will restart after the change.
+            </p>
+
+            <form method="post" action="/admin/">
+                <input type="hidden" name="csrf"
+                    value="<?= escape($_SESSION['csrf']) ?>">
+                <input type="hidden" name="category" value="Zigbee2MQTT">
+                <input type="hidden" name="button" value="SetToken">
+
+                <label for="zigbee_token">Access token</label>
+                <input
+                    id="zigbee_token"
+                    name="token"
+                    type="text"
+                    autocomplete="off"
+                    required
+                >
+
+                <label for="zigbee_token_confirm">Confirm token</label>
+                <input
+                    id="zigbee_token_confirm"
+                    name="confirm_token"
+                    type="text"
+                    autocomplete="off"
+                    required
+                >
+
+                <div class="submit-row">
+                    <button type="submit" <?= !$commandsWritable ? 'disabled' : '' ?>>
+                        Change Zigbee2MQTT token
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card">
             <div class="mosquitto-header">
                 <h2>Mosquitto</h2>
 
                 <div class="mqtt-ports">
-                    <div>
-                        Systemwide MQTT port 1883
-                    </div>
-
-                    <div>
-                        Secure MQTT port <?= escape($secureMqttPortLabel) ?>
-                    </div>
-
-                    <div>
-                        Unsecure MQTT port <?= escape($unsecureMqttPortLabel) ?>
-                    </div>
+                    <div>Systemwide MQTT port 1883</div>
+                    <div>Secure MQTT port <?= escape($secureMqttPortLabel) ?></div>
+                    <div>Unsecure MQTT port <?= escape($unsecureMqttPortLabel) ?></div>
                 </div>
             </div>
 
             <form method="post" action="/admin/">
-                <input
-                    type="hidden"
-                    name="csrf"
-                    value="<?= escape($_SESSION['csrf']) ?>"
-                >
-
-                <input
-                    type="hidden"
-                    name="category"
-                    value="Mosquitto"
-                >
-
-                <input
-                    type="hidden"
-                    name="button"
-                    value="AddUser"
-                >
+                <input type="hidden" name="csrf"
+                    value="<?= escape($_SESSION['csrf']) ?>">
+                <input type="hidden" name="category" value="Mosquitto">
+                <input type="hidden" name="button" value="AddUser">
 
                 <label for="username">Username</label>
                 <input
@@ -823,49 +898,26 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                 >
 
                 <label for="password">Password</label>
-                <div class="password-wrapper">
-                    <input
-                        id="password"
-                        name="password"
-                        type="password"
-                        autocomplete="new-password"
-                        required
-                    >
-
-                    <button
-                        type="button"
-                        class="eye-button"
-                        aria-label="Show passwords"
-                        aria-pressed="false"
-                        aria-controls="password confirm_password"
-                    >👁</button>
-                </div>
+                <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autocomplete="new-password"
+                    required
+                >
 
                 <label for="confirm_password">Confirm password</label>
-                <div class="password-wrapper">
-                    <input
-                        id="confirm_password"
-                        name="confirm_password"
-                        type="password"
-                        autocomplete="new-password"
-                        required
-                    >
-
-                    <button
-                        type="button"
-                        class="eye-button"
-                        aria-label="Show passwords"
-                        aria-pressed="false"
-                        aria-controls="password confirm_password"
-                    >👁</button>
-                </div>
+                <input
+                    id="confirm_password"
+                    name="confirm_password"
+                    type="password"
+                    autocomplete="new-password"
+                    required
+                >
 
                 <div class="submit-row">
-                    <button
-                        type="submit"
-                        <?= !$commandsWritable ? 'disabled' : '' ?>
-                    >
-                        Add MQTT user
+                    <button type="submit" <?= !$commandsWritable ? 'disabled' : '' ?>>
+                        Replace MQTT user
                     </button>
                 </div>
             </form>
@@ -904,46 +956,6 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                 }
             });
         });
-
-        const password = document.getElementById('password');
-        const confirmation = document.getElementById('confirm_password');
-        const toggles = document.querySelectorAll('.eye-button');
-
-        toggles.forEach(button => {
-            button.addEventListener('click', () => {
-                const visible = password.type === 'password';
-
-                [password, confirmation].forEach(field => {
-                    field.type = visible ? 'text' : 'password';
-                });
-
-                toggles.forEach(toggle => {
-                    toggle.textContent = visible ? '🙈' : '👁';
-
-                    toggle.setAttribute(
-                        'aria-label',
-                        visible ? 'Hide passwords' : 'Show passwords'
-                    );
-
-                    toggle.setAttribute(
-                        'aria-pressed',
-                        String(visible)
-                    );
-                });
-            });
-        });
-
-        function validatePasswords() {
-            confirmation.setCustomValidity(
-                confirmation.value !== '' &&
-                password.value !== confirmation.value
-                    ? 'The passwords do not match.'
-                    : ''
-            );
-        }
-
-        password.addEventListener('input', validatePasswords);
-        confirmation.addEventListener('input', validatePasswords);
     </script>
 </body>
 </html>
