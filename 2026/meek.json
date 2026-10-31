@@ -1,6 +1,6 @@
 [
     {
-        "id": "142262a004185d15",
+        "id": "70084345e983252d",
         "type": "tab",
         "label": "Meek-io",
         "disabled": false,
@@ -8,9 +8,9 @@
         "env": []
     },
     {
-        "id": "meek_zigbee_lwt",
+        "id": "cb2892fbf1267b40",
         "type": "mqtt in",
-        "z": "142262a004185d15",
+        "z": "70084345e983252d",
         "name": "Meek_Zigbee LWT",
         "topic": "tele/Meek_Zigbee/LWT",
         "qos": "2",
@@ -24,14 +24,14 @@
         "y": 260,
         "wires": [
             [
-                "meek_validate_lwt"
+                "4665f90ffa551488"
             ]
         ]
     },
     {
-        "id": "meek_validate_lwt",
+        "id": "4665f90ffa551488",
         "type": "function",
-        "z": "142262a004185d15",
+        "z": "70084345e983252d",
         "name": "Validate LWT State",
         "func": "const state = (msg.payload || '').trim().toLowerCase();\n\nif (state !== 'online' && state !== 'offline') {\n    return null;\n}\n\nmsg.payload = state === 'online' ? 'Online' : 'Offline';\n\nreturn msg;",
         "outputs": 1,
@@ -44,14 +44,14 @@
         "y": 260,
         "wires": [
             [
-                "meek_state_switch"
+                "05395e0d44a8e0ef"
             ]
         ]
     },
     {
-        "id": "meek_state_switch",
+        "id": "05395e0d44a8e0ef",
         "type": "switch",
-        "z": "142262a004185d15",
+        "z": "70084345e983252d",
         "name": "Online or Offline",
         "property": "payload",
         "propertyType": "msg",
@@ -74,17 +74,17 @@
         "y": 260,
         "wires": [
             [
-                "meek_start_delay"
+                "17cc7cd7f5466959"
             ],
             [
-                "meek_stop_delay"
+                "8c8e698c20498f94"
             ]
         ]
     },
     {
-        "id": "meek_start_delay",
+        "id": "17cc7cd7f5466959",
         "type": "delay",
-        "z": "142262a004185d15",
+        "z": "70084345e983252d",
         "name": "Wait 15 seconds",
         "pauseType": "delay",
         "timeout": "15",
@@ -102,16 +102,16 @@
         "y": 220,
         "wires": [
             [
-                "meek_read_host_ip"
+                "cf71d50abd9e24cd"
             ]
         ]
     },
     {
-        "id": "meek_read_host_ip",
+        "id": "cf71d50abd9e24cd",
         "type": "file in",
-        "z": "142262a004185d15",
+        "z": "70084345e983252d",
         "name": "Read Host IP File",
-        "filename": "/config/www/actions/MQTT/host-ip.txt",
+        "filename": "/config/www/actions/settings/host-ip.txt",
         "filenameType": "str",
         "format": "utf8",
         "chunk": false,
@@ -122,14 +122,14 @@
         "y": 220,
         "wires": [
             [
-                "meek_build_tasmota_payload"
+                "ba93863fcd88a3dc"
             ]
         ]
     },
     {
-        "id": "meek_build_tasmota_payload",
+        "id": "ba93863fcd88a3dc",
         "type": "function",
-        "z": "142262a004185d15",
+        "z": "70084345e983252d",
         "name": "Build tcpconnect Payload",
         "func": "const ip = (msg.payload || '').trim().split(' ')[0];\nconst parts = ip.split('.');\n\nif (parts.length !== 4) {\n    node.error('Invalid host IP: ' + ip, msg);\n    return null;\n}\n\nconst lastOctet = parts[3];\n\nmsg.topic = 'cmnd/Meek_Zigbee/tcpconnect';\nmsg.payload = lastOctet + '02,mqtt.meek-io.com';\n\nreturn msg;",
         "outputs": 1,
@@ -142,15 +142,15 @@
         "y": 220,
         "wires": [
             [
-                "meek_tasmota_publish",
-                "meek_start_file"
+                "6e0e4b8468d23a08",
+                "7ebfe4c85d59f29b"
             ]
         ]
     },
     {
-        "id": "meek_tasmota_publish",
+        "id": "6e0e4b8468d23a08",
         "type": "mqtt out",
-        "z": "142262a004185d15",
+        "z": "70084345e983252d",
         "name": "Send Tasmota TCP Connect",
         "topic": "",
         "qos": "1",
@@ -166,9 +166,9 @@
         "wires": []
     },
     {
-        "id": "meek_start_file",
+        "id": "7ebfe4c85d59f29b",
         "type": "file",
-        "z": "142262a004185d15",
+        "z": "70084345e983252d",
         "name": "Queue Zigbee Start",
         "filename": "/config/www/actions/Zigbee2MQTT-Start",
         "filenameType": "str",
@@ -180,14 +180,14 @@
         "y": 240,
         "wires": [
             [
-                "meek_start_debug"
+                "49877ecb945dacaf"
             ]
         ]
     },
     {
-        "id": "meek_start_debug",
+        "id": "49877ecb945dacaf",
         "type": "debug",
-        "z": "142262a004185d15",
+        "z": "70084345e983252d",
         "name": "Start command queued",
         "active": true,
         "tosidebar": true,
@@ -202,34 +202,9 @@
         "wires": []
     },
     {
-        "id": "meek_stop_delay",
-        "type": "delay",
-        "z": "142262a004185d15",
-        "name": "Wait 15 seconds",
-        "pauseType": "delay",
-        "timeout": "15",
-        "timeoutUnits": "seconds",
-        "rate": "1",
-        "nbRateUnits": "1",
-        "rateUnits": "minute",
-        "randomFirst": "1",
-        "randomLast": "5",
-        "randomUnits": "seconds",
-        "drop": true,
-        "allowrate": false,
-        "outputs": 1,
-        "x": 850,
-        "y": 320,
-        "wires": [
-            [
-                "meek_stop_change"
-            ]
-        ]
-    },
-    {
-        "id": "meek_stop_change",
+        "id": "8c8e698c20498f94",
         "type": "change",
-        "z": "142262a004185d15",
+        "z": "70084345e983252d",
         "name": "Prepare Stop Command",
         "rules": [
             {
@@ -244,14 +219,14 @@
         "y": 320,
         "wires": [
             [
-                "meek_stop_file"
+                "c1cb6618b250f841"
             ]
         ]
     },
     {
-        "id": "meek_stop_file",
+        "id": "c1cb6618b250f841",
         "type": "file",
-        "z": "142262a004185d15",
+        "z": "70084345e983252d",
         "name": "Queue Zigbee Stop",
         "filename": "/config/www/actions/Zigbee2MQTT-Stop",
         "filenameType": "str",
@@ -263,14 +238,14 @@
         "y": 320,
         "wires": [
             [
-                "meek_stop_debug"
+                "7d3783bdf79d19be"
             ]
         ]
     },
     {
-        "id": "meek_stop_debug",
+        "id": "7d3783bdf79d19be",
         "type": "debug",
-        "z": "142262a004185d15",
+        "z": "70084345e983252d",
         "name": "Stop command queued",
         "active": true,
         "tosidebar": true,
