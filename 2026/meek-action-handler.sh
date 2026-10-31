@@ -16,6 +16,7 @@ HOST_IP_FILE="${SETTINGS_DIR}/host-ip.txt"
 
 ZIGBEE_CONTAINER="zigbee2mqtt"
 NODE_RED_CONTAINER="node-red-node-red-1"
+HOME_ASSISTANT_CONTAINER="homeassistant"
 MOSQUITTO_CONTAINER="mosquitto"
 MOSQUITTO_PASSWORD_FILE="/mosquitto/config/passwd"
 
@@ -136,6 +137,12 @@ get_installed_version() {
             "org.label-schema.version")"
     fi
 
+    if [[ -z "${version}" && "${container}" == "${HOME_ASSISTANT_CONTAINER}" ]]; then
+        version="$(docker exec "${container}" python3 -c \
+            'from homeassistant.const import __version__; print(__version__)' \
+            2>/dev/null || true)"
+    fi
+
     if [[ -z "${version}" ]]; then
         version="Unknown"
     fi
@@ -221,6 +228,10 @@ write_versions_file() {
     local node_red_latest
     local node_red_update
 
+    local home_assistant_installed
+    local home_assistant_latest
+    local home_assistant_update
+
     local temporary
 
     zigbee_installed="$(get_installed_version "${ZIGBEE_CONTAINER}")"
@@ -228,6 +239,9 @@ write_versions_file() {
 
     node_red_installed="$(get_installed_version "${NODE_RED_CONTAINER}")"
     node_red_latest="$(get_latest_github_version "node-red/node-red")"
+
+    home_assistant_installed="$(get_installed_version "${HOME_ASSISTANT_CONTAINER}")"
+    home_assistant_latest="$(get_latest_github_version "home-assistant/core")"
 
     if version_is_older "${zigbee_installed}" "${zigbee_latest}"; then
         zigbee_update="true"
@@ -239,6 +253,12 @@ write_versions_file() {
         node_red_update="true"
     else
         node_red_update="false"
+    fi
+
+    if version_is_older "${home_assistant_installed}" "${home_assistant_latest}"; then
+        home_assistant_update="true"
+    else
+        home_assistant_update="false"
     fi
 
     temporary="${VERSIONS_FILE}.tmp"
@@ -255,6 +275,11 @@ write_versions_file() {
     "installed": "${node_red_installed}",
     "latest": "${node_red_latest}",
     "update_available": ${node_red_update}
+  },
+  "home-assistant": {
+    "installed": "${home_assistant_installed}",
+    "latest": "${home_assistant_latest}",
+    "update_available": ${home_assistant_update}
   }
 }
 EOF
@@ -267,6 +292,7 @@ EOF
     log "Version information updated:"
     log "  Zigbee2MQTT: installed=${zigbee_installed}, latest=${zigbee_latest}"
     log "  Node-RED: installed=${node_red_installed}, latest=${node_red_latest}"
+    log "  Home Assistant: installed=${home_assistant_installed}, latest=${home_assistant_latest}"
 }
 
 # ============================================================
@@ -284,6 +310,9 @@ run_service_action() {
             ;;
         Node-RED)
             container="${NODE_RED_CONTAINER}"
+            ;;
+        "Home Assistant")
+            container="${HOME_ASSISTANT_CONTAINER}"
             ;;
         *)
             log "Unknown service: ${service}"
@@ -556,6 +585,13 @@ process_command_file() {
         Node-RED-Start|Node-RED-Stop|Node-RED-Restart|Node-RED-Update)
             service="Node-RED"
             action="${command_name#Node-RED-}"
+            rm -f "${command_file}"
+            run_service_action "${service}" "${action}"
+            ;;
+
+        Home\ Assistant-Start|Home\ Assistant-Stop|Home\ Assistant-Restart|Home\ Assistant-Update)
+            service="Home Assistant"
+            action="${command_name#Home Assistant-}"
             rm -f "${command_file}"
             run_service_action "${service}" "${action}"
             ;;
