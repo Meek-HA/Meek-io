@@ -702,6 +702,68 @@ update_zigbee_token() {
 }
 
 # ============================================================
+# Home Assistant password management
+# ============================================================
+
+update_home_assistant_password() {
+    local command_file="$1"
+    local username=""
+    local password=""
+    local output=""
+
+    username="$(sed -n '1p' "${command_file}")"
+    password="$(sed -n '2p' "${command_file}")"
+
+    username="${username//$'\r'/}"
+    password="${password//$'\r'/}"
+
+    if [[ -z "${username}" || -z "${password}" ]]; then
+        log "HomeAssistant-SetPassword: missing username or password"
+        return
+    fi
+
+    if ! valid_username "${username}"; then
+        log "HomeAssistant-SetPassword: invalid username (allowed: A-Z a-z 0-9 . _ @ -)"
+        return
+    fi
+
+    if ! docker_container_exists "${HOME_ASSISTANT_CONTAINER}"; then
+        log "Home Assistant container not found: ${HOME_ASSISTANT_CONTAINER}"
+        return
+    fi
+
+    if [[ "$(docker inspect "${HOME_ASSISTANT_CONTAINER}" \
+        --format '{{.State.Running}}' 2>/dev/null)" != "true" ]]; then
+        log "Home Assistant is not running, password change skipped"
+        return
+    fi
+
+    log "Changing Home Assistant password for user: ${username}"
+
+    output="$(docker exec "${HOME_ASSISTANT_CONTAINER}" \
+        hass --script auth --config /config \
+        change_password "${username}" "${password}" 2>&1)"
+
+    log_block "hass" "${output}"
+
+    # The script exits 0 even when the user does not exist,
+    # so the success message is the reliable signal.
+    if [[ "${output}" != *"Password changed"* ]]; then
+        log "Home Assistant password was NOT changed (does the user exist?)"
+        return
+    fi
+
+    if ! docker restart "${HOME_ASSISTANT_CONTAINER}"; then
+        log "Failed to restart Home Assistant"
+        return
+    fi
+
+    write_versions_file
+
+    log "Home Assistant password updated for user: ${username}"
+}
+
+# ============================================================
 # Command processing
 # ============================================================
 
@@ -764,6 +826,11 @@ process_command_file() {
 
         Zigbee2MQTT-SetToken)
             update_zigbee_token "${command_file}"
+            rm -f "${command_file}"
+            ;;
+
+        HomeAssistant-SetPassword)
+            update_home_assistant_password "${command_file}"
             rm -f "${command_file}"
             ;;
 
