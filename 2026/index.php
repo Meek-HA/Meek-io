@@ -1,9 +1,18 @@
 <?php
 declare(strict_types=1);
 
+session_set_cookie_params([
+    'httponly' => true,
+    'samesite' => 'Strict',
+    'secure' => !empty($_SERVER['HTTPS'])
+        || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https',
+]);
 session_start();
 
 header('Cache-Control: no-store');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header("Content-Security-Policy: frame-ancestors 'none'");
 
 $actionsDir = '/config/www/actions';
 $versionsFile = '/config/www/actions/settings/versions.json';
@@ -17,6 +26,9 @@ $mosquittoCredentialsFile =
     '/config/www/actions/settings/current-credentials.txt';
 
 $systemUpdateEnabled = false;
+
+// If versions.json is older than this, the handler is probably not running.
+$handlerStaleSeconds = 7200;
 
 $allowedActions = [
     'System' => ['Reboot', 'Update'],
@@ -58,6 +70,25 @@ function postValue(string $key): string
     $value = $_POST[$key] ?? '';
 
     return is_string($value) ? $value : '';
+}
+
+/**
+ * Returns [css class, label] for the update line of a service.
+ * Shows "Status unknown" instead of "Up to date" when a version
+ * could not be determined.
+ */
+function updateStatus(
+    string $installed,
+    string $latest,
+    bool $available
+): array {
+    if ($installed === 'Unknown' || $latest === 'Unknown') {
+        return ['status-unknown', 'Status unknown'];
+    }
+
+    return $available
+        ? ['update-available', 'Update available']
+        : ['up-to-date', 'Up to date'];
 }
 
 function publishCommand(
@@ -122,10 +153,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $message = 'The passwords do not match.';
             $messageType = 'error';
         } elseif (
-            preg_match('/[\r\n:\x00]/', $username) ||
+            !preg_match('/^[A-Za-z0-9._@-]{1,64}$/', $username) ||
             preg_match('/[\r\n\x00]/', $password)
         ) {
-            $message = 'Unsupported characters in username or password.';
+            $message = 'Username: 1–64 letters, numbers, dots, underscores, '
+                . '@ or hyphens. The password cannot contain line breaks.';
             $messageType = 'error';
         } else {
             $content = $username . "\n" . $password . "\n";
@@ -198,10 +230,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $message = 'The Zigbee2MQTT tokens do not match.';
             $messageType = 'error';
         } elseif (
-            !preg_match('/^[A-Za-z0-9_.:-]{16,128}$/', $token)
+            !preg_match('/^[A-Za-z0-9_.-]{16,128}$/', $token)
         ) {
             $message = 'Use 16–128 letters, numbers, dots, underscores, '
-                . 'colons, or hyphens.';
+                . 'or hyphens.';
             $messageType = 'error';
         } else {
             if (publishCommand(
@@ -212,6 +244,45 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 $message = 'Zigbee2MQTT token change queued.';
             } else {
                 $message = 'Failed to queue Zigbee2MQTT token change.';
+                $messageType = 'error';
+            }
+        }
+
+    } elseif (
+        $category === 'Home Assistant' &&
+        $button === 'SetPassword'
+    ) {
+        $username = trim(postValue('username'));
+        $password = postValue('password');
+        $confirmation = postValue('confirm_password');
+
+        if (
+            $username === '' ||
+            $password === '' ||
+            $confirmation === ''
+        ) {
+            $message = 'Please fill in all Home Assistant fields.';
+            $messageType = 'error';
+        } elseif ($password !== $confirmation) {
+            $message = 'The Home Assistant passwords do not match.';
+            $messageType = 'error';
+        } elseif (
+            !preg_match('/^[A-Za-z0-9._@-]{1,64}$/', $username) ||
+            preg_match('/[\r\n\x00]/', $password)
+        ) {
+            $message = 'Unsupported Home Assistant username or password.';
+            $messageType = 'error';
+        } else {
+            $content = $username . "\n" . $password . "\n";
+
+            if (publishCommand(
+                $actionsDir,
+                'HomeAssistant-SetPassword',
+                $content
+            )) {
+                $message = 'Home Assistant password change queued.';
+            } else {
+                $message = 'Failed to queue Home Assistant password change.';
                 $messageType = 'error';
             }
         }
@@ -232,6 +303,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
             if (publishCommand($actionsDir, $name, '')) {
                 $message = 'Action queued: ' . $name;
+                $_SESSION['refresh'] = true;
             } else {
                 $message = 'Failed to create: ' . $name
                     . '. Check the commands directory and permissions.';
@@ -254,6 +326,11 @@ if (isset($_SESSION['flash'])) {
     unset($_SESSION['flash']);
 }
 
+// After a queued action the page reloads itself for about a minute,
+// so the new version numbers show up once the handler is done.
+$refresh = !empty($_SESSION['refresh']);
+unset($_SESSION['refresh']);
+
 $versions = [
     'zigbee2mqtt' => [
         'installed' => 'Unknown',
@@ -271,6 +348,8 @@ $versions = [
         'update_available' => false,
     ],
 ];
+
+$handlerStale = false;
 
 if (is_readable($versionsFile)) {
     $versionsText = @file_get_contents($versionsFile);
@@ -290,21 +369,57 @@ if (is_readable($versionsFile)) {
                     );
                 }
             }
+
+            if (isset($decoded['updated_at']) && is_string($decoded['updated_at'])) {
+                $updatedAt = strtotime($decoded['updated_at']);
+
+                if (
+                    $updatedAt !== false &&
+                    (time() - $updatedAt) > $handlerStaleSeconds
+                ) {
+                    $handlerStale = true;
+                }
+            }
         }
     }
 }
 
 $zigbeeInstalled = (string) $versions['zigbee2mqtt']['installed'];
 $zigbeeLatest = (string) $versions['zigbee2mqtt']['latest'];
-$zigbeeUpdateAvailable = (bool) $versions['zigbee2mqtt']['update_available'];
+$zigbeeUpdateAvailable = filter_var(
+    $versions['zigbee2mqtt']['update_available'],
+    FILTER_VALIDATE_BOOLEAN
+);
 
 $nodeRedInstalled = (string) $versions['node-red']['installed'];
 $nodeRedLatest = (string) $versions['node-red']['latest'];
-$nodeRedUpdateAvailable = (bool) $versions['node-red']['update_available'];
+$nodeRedUpdateAvailable = filter_var(
+    $versions['node-red']['update_available'],
+    FILTER_VALIDATE_BOOLEAN
+);
 
 $homeAssistantInstalled = (string) $versions['home-assistant']['installed'];
 $homeAssistantLatest = (string) $versions['home-assistant']['latest'];
-$homeAssistantUpdateAvailable = (bool) $versions['home-assistant']['update_available'];
+$homeAssistantUpdateAvailable = filter_var(
+    $versions['home-assistant']['update_available'],
+    FILTER_VALIDATE_BOOLEAN
+);
+
+$zigbeeStatus = updateStatus(
+    $zigbeeInstalled,
+    $zigbeeLatest,
+    $zigbeeUpdateAvailable
+);
+$nodeRedStatus = updateStatus(
+    $nodeRedInstalled,
+    $nodeRedLatest,
+    $nodeRedUpdateAvailable
+);
+$homeAssistantStatus = updateStatus(
+    $homeAssistantInstalled,
+    $homeAssistantLatest,
+    $homeAssistantUpdateAvailable
+);
 
 $hostIp = '';
 $hostLastOctet = '';
@@ -507,29 +622,6 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
             color: #0f172a;
         }
 
-        .password-wrapper {
-            position: relative;
-        }
-
-        .password-wrapper input {
-            padding-right: 48px;
-        }
-
-        .eye-button {
-            position: absolute;
-            top: 50%;
-            right: 5px;
-            transform: translateY(-50%);
-            padding: 7px 10px;
-            background: transparent;
-            color: #475569;
-            font-size: 1rem;
-        }
-
-        .eye-button:hover {
-            background: #f1f5f9;
-        }
-
         .message {
             max-width: 1400px;
             margin-bottom: 20px;
@@ -548,6 +640,11 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
             color: #991b1b;
         }
 
+        .warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
         .info {
             margin: 0 0 15px;
             font-size: 0.85rem;
@@ -563,6 +660,11 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
 
         .up-to-date {
             color: #166534;
+            font-weight: 700;
+        }
+
+        .status-unknown {
+            color: #92400e;
             font-weight: 700;
         }
 
@@ -665,6 +767,14 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
         </div>
     <?php endif; ?>
 
+    <?php if ($handlerStale): ?>
+        <div class="message warning" role="alert">
+            The action handler has not reported in for a while.
+            Queued actions may not run until it is restarted
+            (<code>systemctl restart meek-action-handler</code>).
+        </div>
+    <?php endif; ?>
+
     <div class="grid">
         <?php foreach ($allowedActions as $category => $actions): ?>
             <section class="card">
@@ -691,34 +801,25 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                     <p class="info">
                         Installed: <?= escape($zigbeeInstalled) ?><br>
                         Latest: <?= escape($zigbeeLatest) ?><br>
-
-                        <?php if ($zigbeeUpdateAvailable): ?>
-                            <span class="update-available">Update available</span>
-                        <?php else: ?>
-                            <span class="up-to-date">Up to date</span>
-                        <?php endif; ?>
+                        <span class="<?= escape($zigbeeStatus[0]) ?>">
+                            <?= escape($zigbeeStatus[1]) ?>
+                        </span>
                     </p>
                 <?php elseif ($category === 'Node-RED'): ?>
                     <p class="info">
                         Installed: <?= escape($nodeRedInstalled) ?><br>
                         Latest: <?= escape($nodeRedLatest) ?><br>
-
-                        <?php if ($nodeRedUpdateAvailable): ?>
-                            <span class="update-available">Update available</span>
-                        <?php else: ?>
-                            <span class="up-to-date">Up to date</span>
-                        <?php endif; ?>
+                        <span class="<?= escape($nodeRedStatus[0]) ?>">
+                            <?= escape($nodeRedStatus[1]) ?>
+                        </span>
                     </p>
                 <?php elseif ($category === 'Home Assistant'): ?>
                     <p class="info">
                         Installed: <?= escape($homeAssistantInstalled) ?><br>
                         Latest: <?= escape($homeAssistantLatest) ?><br>
-
-                        <?php if ($homeAssistantUpdateAvailable): ?>
-                            <span class="update-available">Update available</span>
-                        <?php else: ?>
-                            <span class="up-to-date">Up to date</span>
-                        <?php endif; ?>
+                        <span class="<?= escape($homeAssistantStatus[0]) ?>">
+                            <?= escape($homeAssistantStatus[1]) ?>
+                        </span>
                     </p>
                 <?php endif; ?>
 
@@ -831,6 +932,59 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
         </section>
 
         <section class="card">
+            <h2>Home Assistant login</h2>
+
+            <p class="info">
+                Change the password of an existing Home Assistant user.
+                Home Assistant will restart after the change.
+            </p>
+
+            <form
+                method="post"
+                action="/admin/"
+                data-confirm="Change the Home Assistant password and restart Home Assistant?"
+            >
+                <input type="hidden" name="csrf"
+                    value="<?= escape($_SESSION['csrf']) ?>">
+                <input type="hidden" name="category" value="Home Assistant">
+                <input type="hidden" name="button" value="SetPassword">
+
+                <label for="ha_username">Username</label>
+                <input
+                    id="ha_username"
+                    name="username"
+                    type="text"
+                    autocomplete="username"
+                    required
+                >
+
+                <label for="ha_password">New password</label>
+                <input
+                    id="ha_password"
+                    name="password"
+                    type="password"
+                    autocomplete="new-password"
+                    required
+                >
+
+                <label for="ha_confirm">Confirm password</label>
+                <input
+                    id="ha_confirm"
+                    name="confirm_password"
+                    type="password"
+                    autocomplete="new-password"
+                    required
+                >
+
+                <div class="submit-row">
+                    <button type="submit" <?= !$commandsWritable ? 'disabled' : '' ?>>
+                        Change Home Assistant password
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card">
             <h2>Zigbee2MQTT access</h2>
 
             <p class="info">
@@ -882,7 +1036,11 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                 </div>
             </div>
 
-            <form method="post" action="/admin/">
+            <form
+                method="post"
+                action="/admin/"
+                data-confirm="This replaces ALL MQTT users with this one account. Zigbee2MQTT, Node-RED and Home Assistant lose MQTT access unless they use these credentials. Continue?"
+            >
                 <input type="hidden" name="csrf"
                     value="<?= escape($_SESSION['csrf']) ?>">
                 <input type="hidden" name="category" value="Mosquitto">
@@ -956,6 +1114,29 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                 }
             });
         });
+
+        // After a queued action, reload every 5 seconds for about a minute
+        // so the new version numbers appear. Skipped while typing in a field.
+        (function () {
+            const key = 'meekRefreshes';
+            let left = parseInt(sessionStorage.getItem(key) || '0', 10);
+
+            <?php if ($refresh): ?>
+            left = 12;
+            <?php endif; ?>
+
+            if (left > 0) {
+                sessionStorage.setItem(key, String(left - 1));
+
+                setTimeout(function () {
+                    const active = document.activeElement;
+
+                    if (!active || active.tagName !== 'INPUT') {
+                        location.reload();
+                    }
+                }, 5000);
+            }
+        })();
     </script>
 </body>
 </html>
