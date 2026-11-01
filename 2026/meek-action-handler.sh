@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
+umask 077
 
 # ============================================================
 # Meek.io action handler
@@ -13,6 +14,11 @@ VERSIONS_CACHE_DIR="${SETTINGS_DIR}/cache"
 
 CREDENTIALS_FILE="${SETTINGS_DIR}/current-credentials.txt"
 HOST_IP_FILE="${SETTINGS_DIR}/host-ip.txt"
+LOCK_FILE="/var/lock/meek-action-handler.lock"
+
+# File mode for the credentials file. Use 644 only if another user
+# (e.g. a web UI) must read it.
+CREDENTIALS_MODE="600"
 
 ZIGBEE_CONTAINER="zigbee2mqtt"
 NODE_RED_CONTAINER="node-red-node-red-1"
@@ -26,6 +32,7 @@ NODE_RED_AUTH_FILE="/meek-io/node-red/admin-auth.js"
 ZIGBEE_CONFIG_FILE="/meek-io/zigbee2mqtt/configuration.yaml"
 
 CHECK_INTERVAL_SECONDS="5"
+VERSION_REFRESH_SECONDS="3600"
 
 # ============================================================
 # Preparation
@@ -36,10 +43,49 @@ mkdir -p "${SETTINGS_DIR}"
 mkdir -p "${VERSIONS_CACHE_DIR}"
 
 touch "${CREDENTIALS_FILE}"
-chmod 644 "${CREDENTIALS_FILE}"
+chmod "${CREDENTIALS_MODE}" "${CREDENTIALS_FILE}"
 
 log() {
     printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
+}
+
+# Only one instance at a time
+exec 9>"${LOCK_FILE}"
+if ! flock -n 9; then
+    log "Another instance is already running, exiting"
+    exit 1
+fi
+
+# Log every line of a multi-line string with a prefix
+log_block() {
+    local prefix="$1"
+    local text="$2"
+    local line
+
+    while IFS= read -r line; do
+        [[ -n "${line}" ]] && log "  ${prefix}: ${line}"
+    done <<< "${text}"
+}
+
+# ============================================================
+# Input validation
+# ============================================================
+
+valid_username() {
+    [[ "$1" =~ ^[A-Za-z0-9._@-]{1,64}$ ]]
+}
+
+valid_token() {
+    [[ "$1" =~ ^[A-Za-z0-9._-]{1,128}$ ]]
+}
+
+# Overwrite a file's contents while keeping its inode, so single-file
+# bind mounts inside containers keep seeing the update.
+write_in_place() {
+    local source="$1"
+    local target="$2"
+
+    cat "${source}" > "${target}"
 }
 
 # ============================================================
@@ -62,33 +108,25 @@ docker_label_version() {
 }
 
 docker_compose_service() {
-    local container="$1"
-
-    docker inspect "${container}" \
+    docker inspect "$1" \
         --format '{{index .Config.Labels "com.docker.compose.service"}}' \
         2>/dev/null || true
 }
 
 docker_compose_project() {
-    local container="$1"
-
-    docker inspect "${container}" \
+    docker inspect "$1" \
         --format '{{index .Config.Labels "com.docker.compose.project"}}' \
         2>/dev/null || true
 }
 
 docker_compose_file() {
-    local container="$1"
-
-    docker inspect "${container}" \
+    docker inspect "$1" \
         --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}' \
         2>/dev/null || true
 }
 
 docker_compose_directory() {
-    local container="$1"
-
-    docker inspect "${container}" \
+    docker inspect "$1" \
         --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' \
         2>/dev/null || true
 }
@@ -195,6 +233,10 @@ get_latest_github_version() {
     printf '%s' "${version}"
 }
 
+clear_version_cache() {
+    rm -f "${VERSIONS_CACHE_DIR}"/*.txt 2>/dev/null || true
+}
+
 version_is_older() {
     local installed="$1"
     local latest="$2"
@@ -220,18 +262,9 @@ version_is_older() {
 }
 
 write_versions_file() {
-    local zigbee_installed
-    local zigbee_latest
-    local zigbee_update
-
-    local node_red_installed
-    local node_red_latest
-    local node_red_update
-
-    local home_assistant_installed
-    local home_assistant_latest
-    local home_assistant_update
-
+    local zigbee_installed zigbee_latest zigbee_update
+    local node_red_installed node_red_latest node_red_update
+    local home_assistant_installed home_assistant_latest home_assistant_update
     local temporary
 
     zigbee_installed="$(get_installed_version "${ZIGBEE_CONTAINER}")"
@@ -296,6 +329,127 @@ EOF
 }
 
 # ============================================================
+# Container update (Docker Compose)
+# ============================================================
+
+# Portainer stores stacks under /data/compose/<id>/ INSIDE its own container.
+# The compose labels keep that path, which doesn't exist on the host.
+# Map it to the Portainer data volume on the host.
+resolve_host_path() {
+    local path="$1"
+    local portainer_container=""
+    local source=""
+    local candidate=""
+
+    if [[ -e "${path}" ]]; then
+        printf '%s' "${path}"
+        return
+    fi
+
+    if [[ "${path}" == /data/* ]]; then
+        portainer_container="$(docker ps -a --format '{{.Names}}' \
+            | grep -i portainer | head -n 1 || true)"
+
+        if [[ -n "${portainer_container}" ]]; then
+            source="$(docker inspect "${portainer_container}" \
+                --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' \
+                2>/dev/null || true)"
+
+            candidate="${source}${path#/data}"
+
+            if [[ -n "${source}" && -e "${candidate}" ]]; then
+                printf '%s' "${candidate}"
+                return
+            fi
+        fi
+
+        for candidate in /var/lib/docker/volumes/*/_data"${path#/data}"; do
+            if [[ -e "${candidate}" ]]; then
+                printf '%s' "${candidate}"
+                return
+            fi
+        done
+    fi
+
+    printf '%s' "${path}"
+}
+
+update_container() {
+    local container="$1"
+
+    local compose_service compose_project compose_files compose_directory
+    local image_ref before after output rc f
+    local -a compose_args=()
+    local -a files=()
+
+    compose_service="$(docker_compose_service "${container}")"
+    compose_project="$(docker_compose_project "${container}")"
+    compose_files="$(docker_compose_file "${container}")"
+    compose_directory="$(docker_compose_directory "${container}")"
+
+    if [[ -z "${compose_service}" || -z "${compose_project}" || -z "${compose_files}" ]]; then
+        log "${container} is not managed by Docker Compose, update skipped"
+        return
+    fi
+
+    # The label can hold several compose files, separated by commas
+    IFS=',' read -ra files <<< "${compose_files}"
+    for f in "${files[@]}"; do
+        f="$(resolve_host_path "${f}")"
+
+        if [[ ! -f "${f}" ]]; then
+            log "Compose file not found on host: ${f}"
+            log "Update skipped (for Portainer stacks, update from the Portainer UI instead)"
+            return
+        fi
+
+        compose_args+=(-f "${f}")
+    done
+
+    # Use the resolved directory of the first compose file, so relative
+    # paths such as stack.env or .env resolve correctly.
+    compose_directory="$(dirname "${compose_args[1]}")"
+    compose_args+=(--project-directory "${compose_directory}")
+
+    image_ref="$(docker inspect "${container}" --format '{{.Config.Image}}')"
+    before="$(docker inspect "${container}" --format '{{.Image}}')"
+
+    log "Updating ${container} (image: ${image_ref})"
+
+    output="$(docker compose -p "${compose_project}" "${compose_args[@]}" \
+        pull "${compose_service}" 2>&1)"
+    rc=$?
+    log_block "pull" "${output}"
+
+    if (( rc != 0 )); then
+        log "Pull failed for ${compose_service} (exit ${rc}), update aborted"
+        return
+    fi
+
+    output="$(docker compose -p "${compose_project}" "${compose_args[@]}" \
+        up -d "${compose_service}" 2>&1)"
+    rc=$?
+    log_block "up" "${output}"
+
+    if (( rc != 0 )); then
+        log "Failed to recreate ${compose_service} (exit ${rc})"
+        return
+    fi
+
+    # The container ID changes on recreate, so look it up again by name
+    after="$(docker inspect "${container}" --format '{{.Image}}' 2>/dev/null || true)"
+
+    if [[ "${before}" == "${after}" ]]; then
+        log "No new image for ${image_ref}: already current, or the tag is pinned in the compose file"
+    else
+        log "Updated ${container}: ${before:7:12} -> ${after:7:12}"
+        docker image prune -f >/dev/null 2>&1 || true
+    fi
+
+    clear_version_cache
+}
+
+# ============================================================
 # Service actions
 # ============================================================
 
@@ -342,37 +496,7 @@ run_service_action() {
             ;;
 
         Update)
-            local compose_service
-            local compose_project
-            local compose_file
-            local compose_directory
-
-            compose_service="$(docker_compose_service "${container}")"
-            compose_project="$(docker_compose_project "${container}")"
-            compose_file="$(docker_compose_file "${container}")"
-            compose_directory="$(docker_compose_directory "${container}")"
-
-            if [[ -z "${compose_service}" || -z "${compose_project}" || -z "${compose_file}" || -z "${compose_directory}" ]]; then
-                log "Unable to determine Docker Compose details for ${container}"
-                log "Update skipped"
-                return
-            fi
-
-            log "Updating ${container} using Docker Compose"
-
-            docker compose \
-                -p "${compose_project}" \
-                --project-directory "${compose_directory}" \
-                -f "${compose_file}" \
-                pull "${compose_service}" \
-                || log "Failed to pull ${compose_service}"
-
-            docker compose \
-                -p "${compose_project}" \
-                --project-directory "${compose_directory}" \
-                -f "${compose_file}" \
-                up -d "${compose_service}" \
-                || log "Failed to recreate ${compose_service}"
+            update_container "${container}"
             ;;
 
         *)
@@ -403,6 +527,11 @@ add_mosquitto_user() {
         return
     fi
 
+    if ! valid_username "${username}"; then
+        log "Mosquitto-AddUser: invalid username (allowed: A-Z a-z 0-9 . _ @ -)"
+        return
+    fi
+
     if ! docker_container_exists "${MOSQUITTO_CONTAINER}"; then
         log "Mosquitto container not found: ${MOSQUITTO_CONTAINER}"
         return
@@ -410,6 +539,7 @@ add_mosquitto_user() {
 
     log "Replacing Mosquitto credentials with user: ${username}"
 
+    # -c recreates the password file: all other users are removed
     if ! docker exec "${MOSQUITTO_CONTAINER}" \
         mosquitto_passwd -b -c \
         "${MOSQUITTO_PASSWORD_FILE}" \
@@ -429,8 +559,8 @@ add_mosquitto_user() {
         "${password}" \
         > "${CREDENTIALS_FILE}.tmp"
 
+    chmod "${CREDENTIALS_MODE}" "${CREDENTIALS_FILE}.tmp"
     mv "${CREDENTIALS_FILE}.tmp" "${CREDENTIALS_FILE}"
-    chmod 644 "${CREDENTIALS_FILE}"
 
     log "Mosquitto credentials updated"
 }
@@ -443,7 +573,7 @@ update_node_red_credentials() {
     local command_file="$1"
     local username=""
     local password=""
-    local hash=""
+    local content=""
     local temporary=""
 
     username="$(sed -n '1p' "${command_file}")"
@@ -457,6 +587,11 @@ update_node_red_credentials() {
         return
     fi
 
+    if ! valid_username "${username}"; then
+        log "Node-RED-SetCredentials: invalid username (allowed: A-Z a-z 0-9 . _ @ -)"
+        return
+    fi
+
     if [[ ! -f "${NODE_RED_SETTINGS_FILE}" ]]; then
         log "Node-RED settings file not found: ${NODE_RED_SETTINGS_FILE}"
         return
@@ -467,31 +602,34 @@ update_node_red_credentials() {
         return
     fi
 
-    hash="$(docker exec "${NODE_RED_CONTAINER}" node -e \
-        "console.log(require('bcryptjs').hashSync(process.argv[1], 8))" \
-        "${password}")"
+    # The whole file is generated inside the container. Username and password
+    # go through stdin (not argv), and JSON.stringify handles all quoting.
+    content="$(printf '%s\n%s\n' "${username}" "${password}" \
+        | docker exec -i "${NODE_RED_CONTAINER}" node -e '
+            const lines = require("fs").readFileSync(0, "utf8").split("\n");
+            let bcrypt;
+            try { bcrypt = require("bcryptjs"); } catch (e) { bcrypt = require("bcrypt"); }
+            const auth = {
+                type: "credentials",
+                users: [{
+                    username: lines[0],
+                    password: bcrypt.hashSync(lines[1], 8),
+                    permissions: "*"
+                }]
+            };
+            console.log("module.exports = " + JSON.stringify(auth, null, 4) + ";");
+        ' 2>/dev/null)"
 
-    if [[ -z "${hash}" ]]; then
-        log "Failed to generate Node-RED password hash"
+    if [[ -z "${content}" || "${content}" != module.exports* ]]; then
+        log "Failed to generate Node-RED credentials file"
         return
     fi
 
     temporary="${NODE_RED_AUTH_FILE}.tmp"
+    printf '%s\n' "${content}" > "${temporary}"
 
-    cat > "${temporary}" <<EOF
-module.exports = {
-    type: "credentials",
-    users: [
-        {
-            username: "${username}",
-            password: "${hash}",
-            permissions: "*"
-        }
-    ]
-};
-EOF
-
-    mv "${temporary}" "${NODE_RED_AUTH_FILE}"
+    write_in_place "${temporary}" "${NODE_RED_AUTH_FILE}"
+    rm -f "${temporary}"
     chmod 644 "${NODE_RED_AUTH_FILE}"
 
     if ! docker restart "${NODE_RED_CONTAINER}"; then
@@ -509,12 +647,18 @@ EOF
 update_zigbee_token() {
     local command_file="$1"
     local token=""
+    local temporary=""
 
     token="$(sed -n '1p' "${command_file}")"
     token="${token//$'\r'/}"
 
     if [[ -z "${token}" ]]; then
         log "Zigbee2MQTT-SetToken: missing token"
+        return
+    fi
+
+    if ! valid_token "${token}"; then
+        log "Zigbee2MQTT-SetToken: invalid token (allowed: A-Z a-z 0-9 . _ -)"
         return
     fi
 
@@ -530,12 +674,24 @@ update_zigbee_token() {
 
     log "Updating Zigbee2MQTT frontend token"
 
-    if ! sed -i \
+    temporary="${ZIGBEE_CONFIG_FILE}.tmp"
+
+    if ! sed \
         "s|^\([[:space:]]*\)auth_token:.*|\1auth_token: \"${token}\"|" \
-        "${ZIGBEE_CONFIG_FILE}"; then
-        log "Failed to update Zigbee2MQTT configuration"
+        "${ZIGBEE_CONFIG_FILE}" > "${temporary}"; then
+        log "Failed to generate Zigbee2MQTT configuration"
+        rm -f "${temporary}"
         return
     fi
+
+    if ! grep -q "auth_token: \"${token}\"" "${temporary}"; then
+        log "No auth_token line found in ${ZIGBEE_CONFIG_FILE}, nothing changed"
+        rm -f "${temporary}"
+        return
+    fi
+
+    write_in_place "${temporary}" "${ZIGBEE_CONFIG_FILE}"
+    rm -f "${temporary}"
 
     if ! docker restart "${ZIGBEE_CONTAINER}"; then
         log "Failed to restart Zigbee2MQTT"
@@ -571,7 +727,7 @@ process_command_file() {
             ;;
 
         System-Update)
-            log "System update requested"
+            log "System update requested (not implemented)"
             rm -f "${command_file}"
             ;;
 
@@ -626,6 +782,8 @@ process_commands() {
     for command_file in "${COMMANDS_DIR}"/*; do
         [[ -f "${command_file}" ]] || continue
 
+        # Dotfiles are ignored, so writers can create ".name.tmp"
+        # and mv it into place once it is complete.
         [[ "$(basename "${command_file}")" == .* ]] && continue
 
         process_command_file "${command_file}"
@@ -651,7 +809,7 @@ while true; do
 
     now="$(date +%s)"
 
-    if (( now - LAST_VERSION_UPDATE >= 3600 )); then
+    if (( now - LAST_VERSION_UPDATE >= VERSION_REFRESH_SECONDS )); then
         write_versions_file
         LAST_VERSION_UPDATE="${now}"
     fi
