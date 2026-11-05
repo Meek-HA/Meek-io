@@ -76,6 +76,10 @@ function postValue(string $key): string
  * Returns [css class, label] for the update line of a service.
  * Shows "Status unknown" instead of "Up to date" when a version
  * could not be determined.
+ *
+ * The handler's "update_available" flag is not trusted on its own:
+ * the installed and latest versions are compared here as well, so a
+ * wrong or missing flag can no longer hide a real update.
  */
 function updateStatus(
     string $installed,
@@ -85,6 +89,15 @@ function updateStatus(
     if ($installed === 'Unknown' || $latest === 'Unknown') {
         return ['status-unknown', 'Status unknown'];
     }
+
+    // Strip a leading "v" (common in Node-RED / Zigbee2MQTT tags).
+    $normalize = static fn (string $v): string => ltrim(trim($v), 'vV');
+
+    $available = $available || version_compare(
+        $normalize($installed),
+        $normalize($latest),
+        '<'
+    );
 
     return $available
         ? ['update-available', 'Update available']
