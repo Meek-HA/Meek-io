@@ -20,6 +20,10 @@ LOCK_FILE="/var/lock/meek-action-handler.lock"
 # (e.g. a web UI) must read it.
 CREDENTIALS_MODE="600"
 
+# Owner of the credentials file: the user PHP runs as in the nginx
+# container (abc, uid/gid 1000), so the admin page can read it.
+CREDENTIALS_OWNER="1000:1000"
+
 ZIGBEE_CONTAINER="zigbee2mqtt"
 NODE_RED_CONTAINER="node-red-node-red-1"
 HOME_ASSISTANT_CONTAINER="homeassistant"
@@ -34,6 +38,10 @@ ZIGBEE_CONFIG_FILE="/meek-io/zigbee2mqtt/configuration.yaml"
 CHECK_INTERVAL_SECONDS="5"
 VERSION_REFRESH_SECONDS="3600"
 
+# Must stay shorter than VERSION_REFRESH_SECONDS, so every refresh
+# fetches fresh data instead of reusing a cache that is almost 1h old.
+VERSION_CACHE_MAX_AGE_SECONDS="3000"
+
 # ============================================================
 # Preparation
 # ============================================================
@@ -44,6 +52,7 @@ mkdir -p "${VERSIONS_CACHE_DIR}"
 
 touch "${CREDENTIALS_FILE}"
 chmod "${CREDENTIALS_MODE}" "${CREDENTIALS_FILE}"
+chown "${CREDENTIALS_OWNER}" "${CREDENTIALS_FILE}" || true
 
 log() {
     printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -68,7 +77,7 @@ log_block() {
 }
 
 # ============================================================
-# Input validation
+# Input helpers
 # ============================================================
 
 valid_username() {
@@ -77,6 +86,17 @@ valid_username() {
 
 valid_token() {
     [[ "$1" =~ ^[A-Za-z0-9._-]{1,128}$ ]]
+}
+
+# Print line N of a command file, with any carriage return removed.
+read_command_line() {
+    local file="$1"
+    local number="$2"
+    local value
+
+    value="$(sed -n "${number}p" "${file}")"
+
+    printf '%s' "${value//$'\r'/}"
 }
 
 # Overwrite a file's contents while keeping its inode, so single-file
@@ -93,41 +113,15 @@ write_in_place() {
 # ============================================================
 
 docker_container_exists() {
-    local container="$1"
-
-    docker inspect "${container}" >/dev/null 2>&1
+    docker inspect "$1" >/dev/null 2>&1
 }
 
-docker_label_version() {
+docker_label() {
     local container="$1"
     local label="$2"
 
     docker inspect "${container}" \
         --format "{{index .Config.Labels \"${label}\"}}" \
-        2>/dev/null || true
-}
-
-docker_compose_service() {
-    docker inspect "$1" \
-        --format '{{index .Config.Labels "com.docker.compose.service"}}' \
-        2>/dev/null || true
-}
-
-docker_compose_project() {
-    docker inspect "$1" \
-        --format '{{index .Config.Labels "com.docker.compose.project"}}' \
-        2>/dev/null || true
-}
-
-docker_compose_file() {
-    docker inspect "$1" \
-        --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}' \
-        2>/dev/null || true
-}
-
-docker_compose_directory() {
-    docker inspect "$1" \
-        --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' \
         2>/dev/null || true
 }
 
@@ -159,20 +153,19 @@ write_host_ip_file() {
 
 # ============================================================
 # Version helpers
+#
+# The handler only records the installed and latest versions.
+# The admin page decides whether an update is available.
 # ============================================================
 
 get_installed_version() {
     local container="$1"
     local version=""
 
-    version="$(docker_label_version \
-        "${container}" \
-        "org.opencontainers.image.version")"
+    version="$(docker_label "${container}" "org.opencontainers.image.version")"
 
     if [[ -z "${version}" ]]; then
-        version="$(docker_label_version \
-            "${container}" \
-            "org.label-schema.version")"
+        version="$(docker_label "${container}" "org.label-schema.version")"
     fi
 
     if [[ -z "${version}" && "${container}" == "${HOME_ASSISTANT_CONTAINER}" ]]; then
@@ -193,13 +186,12 @@ get_latest_github_version() {
     local cache_file="${VERSIONS_CACHE_DIR}/${repository//\//_}.txt"
     local response=""
     local version=""
+    local cache_age
 
     if [[ -f "${cache_file}" ]]; then
-        local cache_age
-
         cache_age="$(( $(date +%s) - $(stat -c %Y "${cache_file}") ))"
 
-        if (( cache_age < 3600 )); then
+        if (( cache_age < VERSION_CACHE_MAX_AGE_SECONDS )); then
             cat "${cache_file}"
             return
         fi
@@ -218,6 +210,7 @@ get_latest_github_version() {
         | cut -d '"' -f 4 || true)"
 
     if [[ -z "${version}" ]]; then
+        # GitHub unreachable or rate limited: fall back to the old cache
         if [[ -f "${cache_file}" ]]; then
             cat "${cache_file}"
         else
@@ -237,35 +230,11 @@ clear_version_cache() {
     rm -f "${VERSIONS_CACHE_DIR}"/*.txt 2>/dev/null || true
 }
 
-version_is_older() {
-    local installed="$1"
-    local latest="$2"
-
-    installed="${installed#v}"
-    latest="${latest#v}"
-
-    if [[ ! "${installed}" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
-        return 1
-    fi
-
-    if [[ ! "${latest}" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
-        return 1
-    fi
-
-    [[ "$(
-        printf '%s\n%s\n' \
-            "${installed}" \
-            "${latest}" \
-            | sort -V \
-            | head -n 1
-    )" != "${installed}" ]]
-}
-
 write_versions_file() {
-    local zigbee_installed zigbee_latest zigbee_update
-    local node_red_installed node_red_latest node_red_update
-    local home_assistant_installed home_assistant_latest home_assistant_update
-    local temporary
+    local zigbee_installed zigbee_latest
+    local node_red_installed node_red_latest
+    local home_assistant_installed home_assistant_latest
+    local temporary="${VERSIONS_FILE}.tmp"
 
     zigbee_installed="$(get_installed_version "${ZIGBEE_CONTAINER}")"
     zigbee_latest="$(get_latest_github_version "Koenkk/zigbee2mqtt")"
@@ -276,43 +245,20 @@ write_versions_file() {
     home_assistant_installed="$(get_installed_version "${HOME_ASSISTANT_CONTAINER}")"
     home_assistant_latest="$(get_latest_github_version "home-assistant/core")"
 
-    if version_is_older "${zigbee_installed}" "${zigbee_latest}"; then
-        zigbee_update="true"
-    else
-        zigbee_update="false"
-    fi
-
-    if version_is_older "${node_red_installed}" "${node_red_latest}"; then
-        node_red_update="true"
-    else
-        node_red_update="false"
-    fi
-
-    if version_is_older "${home_assistant_installed}" "${home_assistant_latest}"; then
-        home_assistant_update="true"
-    else
-        home_assistant_update="false"
-    fi
-
-    temporary="${VERSIONS_FILE}.tmp"
-
     cat > "${temporary}" <<EOF
 {
   "updated_at": "$(date -Is)",
   "zigbee2mqtt": {
     "installed": "${zigbee_installed}",
-    "latest": "${zigbee_latest}",
-    "update_available": ${zigbee_update}
+    "latest": "${zigbee_latest}"
   },
   "node-red": {
     "installed": "${node_red_installed}",
-    "latest": "${node_red_latest}",
-    "update_available": ${node_red_update}
+    "latest": "${node_red_latest}"
   },
   "home-assistant": {
     "installed": "${home_assistant_installed}",
-    "latest": "${home_assistant_latest}",
-    "update_available": ${home_assistant_update}
+    "latest": "${home_assistant_latest}"
   }
 }
 EOF
@@ -382,10 +328,9 @@ update_container() {
     local -a compose_args=()
     local -a files=()
 
-    compose_service="$(docker_compose_service "${container}")"
-    compose_project="$(docker_compose_project "${container}")"
-    compose_files="$(docker_compose_file "${container}")"
-    compose_directory="$(docker_compose_directory "${container}")"
+    compose_service="$(docker_label "${container}" "com.docker.compose.service")"
+    compose_project="$(docker_label "${container}" "com.docker.compose.project")"
+    compose_files="$(docker_label "${container}" "com.docker.compose.project.config_files")"
 
     if [[ -z "${compose_service}" || -z "${compose_project}" || -z "${compose_files}" ]]; then
         log "${container} is not managed by Docker Compose, update skipped"
@@ -406,7 +351,7 @@ update_container() {
         compose_args+=(-f "${f}")
     done
 
-    # Use the resolved directory of the first compose file, so relative
+    # Use the directory of the first resolved compose file, so relative
     # paths such as stack.env or .env resolve correctly.
     compose_directory="$(dirname "${compose_args[1]}")"
     compose_args+=(--project-directory "${compose_directory}")
@@ -459,15 +404,9 @@ run_service_action() {
     local container=""
 
     case "${service}" in
-        Zigbee2MQTT)
-            container="${ZIGBEE_CONTAINER}"
-            ;;
-        Node-RED)
-            container="${NODE_RED_CONTAINER}"
-            ;;
-        "Home Assistant")
-            container="${HOME_ASSISTANT_CONTAINER}"
-            ;;
+        Zigbee2MQTT)      container="${ZIGBEE_CONTAINER}" ;;
+        Node-RED)         container="${NODE_RED_CONTAINER}" ;;
+        "Home Assistant") container="${HOME_ASSISTANT_CONTAINER}" ;;
         *)
             log "Unknown service: ${service}"
             return
@@ -513,14 +452,10 @@ run_service_action() {
 
 add_mosquitto_user() {
     local command_file="$1"
-    local username=""
-    local password=""
+    local username password
 
-    username="$(sed -n '1p' "${command_file}")"
-    password="$(sed -n '2p' "${command_file}")"
-
-    username="${username//$'\r'/}"
-    password="${password//$'\r'/}"
+    username="$(read_command_line "${command_file}" 1)"
+    password="$(read_command_line "${command_file}" 2)"
 
     if [[ -z "${username}" || -z "${password}" ]]; then
         log "Mosquitto-AddUser: missing username or password"
@@ -560,6 +495,7 @@ add_mosquitto_user() {
         > "${CREDENTIALS_FILE}.tmp"
 
     chmod "${CREDENTIALS_MODE}" "${CREDENTIALS_FILE}.tmp"
+    chown "${CREDENTIALS_OWNER}" "${CREDENTIALS_FILE}.tmp" || true
     mv "${CREDENTIALS_FILE}.tmp" "${CREDENTIALS_FILE}"
 
     log "Mosquitto credentials updated"
@@ -571,16 +507,10 @@ add_mosquitto_user() {
 
 update_node_red_credentials() {
     local command_file="$1"
-    local username=""
-    local password=""
-    local content=""
-    local temporary=""
+    local username password content temporary
 
-    username="$(sed -n '1p' "${command_file}")"
-    password="$(sed -n '2p' "${command_file}")"
-
-    username="${username//$'\r'/}"
-    password="${password//$'\r'/}"
+    username="$(read_command_line "${command_file}" 1)"
+    password="$(read_command_line "${command_file}" 2)"
 
     if [[ -z "${username}" || -z "${password}" ]]; then
         log "Node-RED-SetCredentials: missing username or password"
@@ -646,11 +576,9 @@ update_node_red_credentials() {
 
 update_zigbee_token() {
     local command_file="$1"
-    local token=""
-    local temporary=""
+    local token temporary
 
-    token="$(sed -n '1p' "${command_file}")"
-    token="${token//$'\r'/}"
+    token="$(read_command_line "${command_file}" 1)"
 
     if [[ -z "${token}" ]]; then
         log "Zigbee2MQTT-SetToken: missing token"
@@ -707,15 +635,10 @@ update_zigbee_token() {
 
 update_home_assistant_password() {
     local command_file="$1"
-    local username=""
-    local password=""
-    local output=""
+    local username password output
 
-    username="$(sed -n '1p' "${command_file}")"
-    password="$(sed -n '2p' "${command_file}")"
-
-    username="${username//$'\r'/}"
-    password="${password//$'\r'/}"
+    username="$(read_command_line "${command_file}" 1)"
+    password="$(read_command_line "${command_file}" 2)"
 
     if [[ -z "${username}" || -z "${password}" ]]; then
         log "HomeAssistant-SetPassword: missing username or password"
@@ -770,8 +693,6 @@ update_home_assistant_password() {
 process_command_file() {
     local command_file="$1"
     local command_name
-    local service=""
-    local action=""
 
     [[ -f "${command_file}" ]] || return
 
@@ -794,24 +715,18 @@ process_command_file() {
             ;;
 
         Zigbee2MQTT-Start|Zigbee2MQTT-Stop|Zigbee2MQTT-Restart|Zigbee2MQTT-Update)
-            service="Zigbee2MQTT"
-            action="${command_name#Zigbee2MQTT-}"
             rm -f "${command_file}"
-            run_service_action "${service}" "${action}"
+            run_service_action "Zigbee2MQTT" "${command_name#Zigbee2MQTT-}"
             ;;
 
         Node-RED-Start|Node-RED-Stop|Node-RED-Restart|Node-RED-Update)
-            service="Node-RED"
-            action="${command_name#Node-RED-}"
             rm -f "${command_file}"
-            run_service_action "${service}" "${action}"
+            run_service_action "Node-RED" "${command_name#Node-RED-}"
             ;;
 
         Home\ Assistant-Start|Home\ Assistant-Stop|Home\ Assistant-Restart|Home\ Assistant-Update)
-            service="Home Assistant"
-            action="${command_name#Home Assistant-}"
             rm -f "${command_file}"
-            run_service_action "${service}" "${action}"
+            run_service_action "Home Assistant" "${command_name#Home Assistant-}"
             ;;
 
         Mosquitto-AddUser)
@@ -860,7 +775,7 @@ process_commands() {
 }
 
 # ============================================================
-# Main loop: check commands every 5 seconds
+# Main loop: check commands every CHECK_INTERVAL_SECONDS
 # ============================================================
 
 log "Meek.io action handler started"
