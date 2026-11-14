@@ -1,4 +1,4 @@
-Home-Assiatnt Docker-compose:
+Home-Assistant Docker-compose:
 ----------------------------
 services:
   homeassistant:
@@ -6,6 +6,7 @@ services:
     image: "ghcr.io/home-assistant/home-assistant:stable"
     volumes:
       - /meek-io/home-assistant:/config
+      - /meek-io/meek/commands:/commands
       - /etc/localtime:/etc/localtime:ro
       - /run/dbus:/run/dbus:ro
     restart: unless-stopped
@@ -21,6 +22,11 @@ Add the following lines in : .storage/http
 "use_x_forwarded_for": true,
 "trusted_proxies": ["10.10.10.100"],
 ----------------------------
+nano /meek-io/home-assistant/configuration.yaml
+----------------------------
+shell_command:
+  create_zigbee_start_file: "touch /commands/Zigbee2MQTT-Start"
+----------------------------
 Install hacks (docker HA enviroment):
 ----------------------------
 wget -O - https://get.hacs.xyz | bash -
@@ -35,7 +41,29 @@ NPM enable :
 - HTTP/2 Support
 Create SSL certificate
 ----------------------------
-
+Automations for Zigbee2MQTT :
+----------------------------
+alias: Zigbee2MQTT Watchdog
+description: Restart Zigbee2MQTT when bridge is disconnected but MQTT is connected
+triggers:
+  - trigger: time_pattern
+    seconds: /5
+conditions:
+  - condition: state
+    entity_id: sensor.meek_zigbee_mqtt_status
+    state: Connected
+  - condition: or
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.zigbee2mqtt_bridge_connection_state
+        state: 'off'
+      - condition: state
+        entity_id: binary_sensor.zigbee2mqtt_bridge_connection_state
+        state: Unknown
+actions:
+  - action: shell_command.create_zigbee_start_file
+mode: single
+----------------------------
 
 
 Zigbee2MQTT section:
