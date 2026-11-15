@@ -425,8 +425,13 @@ run_service_action() {
             ;;
 
         Stop)
-            log "Stopping ${container}"
-            docker stop "${container}" || log "Failed to stop ${container}"
+            if [[ "${service}" == "Zigbee2MQTT" ]]; then
+                log "Killing ${container}"
+                docker kill "${container}" || log "Failed to kill ${container}"
+            else
+                log "Stopping ${container}"
+                docker stop "${container}" || log "Failed to stop ${container}"
+            fi
             ;;
 
         Restart)
