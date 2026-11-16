@@ -1044,8 +1044,8 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
 
                 <div class="mqtt-ports">
                     <div>Systemwide MQTT port 1883</div>
-                    <div>Secure MQTT port <?= escape($secureMqttPortLabel) ?></div>
-                    <div>Unsecure MQTT port <?= escape($unsecureMqttPortLabel) ?></div>
+                    <div>Unsecure MQTT port <?= escape($secureMqttPortLabel) ?></div>
+                    <div>Secure MQTT port <?= escape($unsecureMqttPortLabel) ?></div>
                 </div>
             </div>
 
