@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
+# No "set -e" on purpose: this is a long-running daemon, and a single failed
+# command must not kill the loop. Errors are handled and logged explicitly.
 set -uo pipefail
 umask 077
+shopt -s nullglob
 
 # ============================================================
 # Meek.io action handler
@@ -30,40 +33,39 @@ HOME_ASSISTANT_CONTAINER="homeassistant"
 MOSQUITTO_CONTAINER="mosquitto"
 MOSQUITTO_PASSWORD_FILE="/mosquitto/config/passwd"
 
+# UID/GID used by the Mosquitto process in its container.
+MOSQUITTO_UID_GID="1883:1883"
+
 NODE_RED_SETTINGS_FILE="/meek-io/node-red/settings.js"
 NODE_RED_AUTH_FILE="/meek-io/node-red/admin-auth.js"
 
 ZIGBEE_CONFIG_FILE="/meek-io/zigbee2mqtt/configuration.yaml"
 
-CHECK_INTERVAL_SECONDS="5"
+CHECK_INTERVAL_SECONDS="4"
 VERSION_REFRESH_SECONDS="3600"
+HOST_IP_REFRESH_SECONDS="60"
 
 # Must stay shorter than VERSION_REFRESH_SECONDS, so every refresh
 # fetches fresh data instead of reusing a cache that is almost 1h old.
 VERSION_CACHE_MAX_AGE_SECONDS="3000"
 
-# ============================================================
-# Preparation
-# ============================================================
+# After a failed GitHub request, do not retry for this long.
+VERSION_FAIL_BACKOFF_SECONDS="300"
 
-mkdir -p "${COMMANDS_DIR}"
-mkdir -p "${SETTINGS_DIR}"
-mkdir -p "${VERSIONS_CACHE_DIR}"
+# Safety limits
+DOCKER_TIMEOUT_SECONDS="120"
+COMPOSE_TIMEOUT_SECONDS="900"
+MAX_COMMAND_BYTES="4096"
 
-touch "${CREDENTIALS_FILE}"
-chmod "${CREDENTIALS_MODE}" "${CREDENTIALS_FILE}"
-chown "${CREDENTIALS_OWNER}" "${CREDENTIALS_FILE}" || true
+LAST_HOST_IP=""
+
+# ============================================================
+# Logging
+# ============================================================
 
 log() {
     printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
 }
-
-# Only one instance at a time
-exec 9>"${LOCK_FILE}"
-if ! flock -n 9; then
-    log "Another instance is already running, exiting"
-    exit 1
-fi
 
 # Log every line of a multi-line string with a prefix
 log_block() {
@@ -77,6 +79,45 @@ log_block() {
 }
 
 # ============================================================
+# Single instance lock (taken before anything else is touched)
+# ============================================================
+
+exec 9>"${LOCK_FILE}"
+if ! flock -n 9; then
+    log "Another instance is already running, exiting"
+    exit 1
+fi
+
+cleanup() {
+    rm -f \
+        "${VERSIONS_FILE}.tmp" \
+        "${HOST_IP_FILE}.tmp" \
+        "${CREDENTIALS_FILE}.tmp" \
+        "${NODE_RED_AUTH_FILE}.tmp" \
+        "${NODE_RED_AUTH_FILE}.bak" \
+        "${ZIGBEE_CONFIG_FILE}.tmp" \
+        "${ZIGBEE_CONFIG_FILE}.bak" \
+        2>/dev/null || true
+}
+
+trap cleanup EXIT
+trap 'log "Signal received, shutting down"; exit 0' TERM INT
+
+# ============================================================
+# Preparation
+# ============================================================
+
+mkdir -p "${COMMANDS_DIR}" "${SETTINGS_DIR}" "${VERSIONS_CACHE_DIR}"
+
+touch "${CREDENTIALS_FILE}"
+chmod "${CREDENTIALS_MODE}" "${CREDENTIALS_FILE}"
+chown "${CREDENTIALS_OWNER}" "${CREDENTIALS_FILE}" \
+    || log "WARNING: could not chown ${CREDENTIALS_FILE} to ${CREDENTIALS_OWNER}"
+
+# Claimed command files left behind by a crash may hold passwords: remove them.
+rm -f "${COMMANDS_DIR}"/*.processing.*
+
+# ============================================================
 # Input helpers
 # ============================================================
 
@@ -88,32 +129,80 @@ valid_token() {
     [[ "$1" =~ ^[A-Za-z0-9._-]{1,128}$ ]]
 }
 
-# Print line N of a command file, with any carriage return removed.
-read_command_line() {
+# Read every line of a command file into an indexed array.
+# The nameref must use a different name from the caller's array,
+# otherwise Bash reports a circular name reference.
+read_command_fields() {
     local file="$1"
-    local number="$2"
-    local value
+    local -n command_fields="$2"
+    local line
+    local index=0
 
-    value="$(sed -n "${number}p" "${file}")"
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        command_fields[$((index++))]="${line//$'\r'/}"
+    done < "${file}"
+}
 
-    printf '%s' "${value//$'\r'/}"
+# Escape a string for use inside a JSON string literal.
+json_escape() {
+    local s="$1"
+
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//[$'\001'-$'\037']/}"
+
+    printf '%s' "${s}"
 }
 
 # Overwrite a file's contents while keeping its inode, so single-file
 # bind mounts inside containers keep seeing the update.
+# A backup is kept during the write and restored if the write fails.
 write_in_place() {
     local source="$1"
     local target="$2"
+    local backup="${target}.bak"
 
-    cat "${source}" > "${target}"
+    cp -p "${target}" "${backup}" 2>/dev/null || true
+
+    if ! cat "${source}" > "${target}"; then
+        log "Write to ${target} failed, restoring backup"
+        [[ -f "${backup}" ]] && cat "${backup}" > "${target}"
+        rm -f "${backup}"
+        return 1
+    fi
+
+    rm -f "${backup}"
 }
 
 # ============================================================
 # Docker helpers
 # ============================================================
 
+# Run docker with a timeout. fd 9 (the lock) is closed for the child, so a
+# lingering docker process can never keep the lock after this script exits.
+docker_run() {
+    timeout "${DOCKER_TIMEOUT_SECONDS}" docker "$@" 9>&-
+}
+
+# Same, but logs the output with a prefix. Returns docker's exit status.
+docker_logged() {
+    local label="$1"
+    local output rc
+    shift
+
+    output="$(docker_run "$@" 2>&1)"
+    rc=$?
+    log_block "${label}" "${output}"
+
+    return "${rc}"
+}
+
 docker_container_exists() {
     docker inspect "$1" >/dev/null 2>&1
+}
+
+docker_container_running() {
+    [[ "$(docker inspect "$1" --format '{{.State.Running}}' 2>/dev/null)" == "true" ]]
 }
 
 docker_label() {
@@ -132,12 +221,13 @@ docker_label() {
 write_host_ip_file() {
     local host_ip=""
 
-    host_ip="$(ip -4 addr show scope global \
-        | grep -oP '(?<=inet\s)\d+(\.\d+){3}' \
-        | head -n 1 || true)"
+    # Ask the kernel which source address it would use to reach the internet.
+    # This avoids picking docker0 / br-* bridge addresses.
+    host_ip="$(ip -4 route get 1.1.1.1 2>/dev/null \
+        | awk '{for (i = 1; i <= NF; i++) if ($i == "src") { print $(i + 1); exit }}')"
 
     if [[ -z "${host_ip}" ]]; then
-        host_ip="$(hostname -I | awk '{print $1}')"
+        host_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
     fi
 
     if [[ -z "${host_ip}" ]]; then
@@ -148,7 +238,10 @@ write_host_ip_file() {
     mv "${HOST_IP_FILE}.tmp" "${HOST_IP_FILE}"
     chmod 644 "${HOST_IP_FILE}"
 
-    log "Host IP updated: ${host_ip}"
+    if [[ "${host_ip}" != "${LAST_HOST_IP}" ]]; then
+        log "Host IP updated: ${host_ip}"
+        LAST_HOST_IP="${host_ip}"
+    fi
 }
 
 # ============================================================
@@ -169,7 +262,7 @@ get_installed_version() {
     fi
 
     if [[ -z "${version}" && "${container}" == "${HOME_ASSISTANT_CONTAINER}" ]]; then
-        version="$(docker exec "${container}" python3 -c \
+        version="$(docker_run exec "${container}" python3 -c \
             'from homeassistant.const import __version__; print(__version__)' \
             2>/dev/null || true)"
     fi
@@ -184,15 +277,31 @@ get_installed_version() {
 get_latest_github_version() {
     local repository="$1"
     local cache_file="${VERSIONS_CACHE_DIR}/${repository//\//_}.txt"
+    local fail_file="${cache_file}.fail"
     local response=""
     local version=""
-    local cache_age
+    local age
 
     if [[ -f "${cache_file}" ]]; then
-        cache_age="$(( $(date +%s) - $(stat -c %Y "${cache_file}") ))"
+        age="$(( $(date +%s) - $(stat -c %Y "${cache_file}") ))"
 
-        if (( cache_age < VERSION_CACHE_MAX_AGE_SECONDS )); then
+        if (( age < VERSION_CACHE_MAX_AGE_SECONDS )); then
             cat "${cache_file}"
+            return
+        fi
+    fi
+
+    # Recent failure: do not hammer GitHub (and block the loop for 10 s per repo)
+    if [[ -f "${fail_file}" ]]; then
+        age="$(( $(date +%s) - $(stat -c %Y "${fail_file}") ))"
+
+        if (( age < VERSION_FAIL_BACKOFF_SECONDS )); then
+            if [[ -f "${cache_file}" ]]; then
+                cat "${cache_file}"
+            else
+                printf 'Unknown'
+            fi
+
             return
         fi
     fi
@@ -202,15 +311,21 @@ get_latest_github_version() {
         -H 'User-Agent: Meek-io-Action-Handler' \
         -H 'Accept: application/vnd.github+json' \
         "https://api.github.com/repos/${repository}/releases/latest" \
-        2>/dev/null || true)"
+        2>/dev/null 9>&- || true)"
 
     version="$(printf '%s' "${response}" \
         | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' \
         | head -n 1 \
         | cut -d '"' -f 4 || true)"
 
+    # Image labels usually have no "v" prefix, GitHub tags often do
+    version="${version#v}"
+
     if [[ -z "${version}" ]]; then
-        # GitHub unreachable or rate limited: fall back to the old cache
+        # GitHub unreachable or rate limited: remember the failure and
+        # fall back to the old cache
+        touch "${fail_file}"
+
         if [[ -f "${cache_file}" ]]; then
             cat "${cache_file}"
         else
@@ -220,14 +335,18 @@ get_latest_github_version() {
         return
     fi
 
+    rm -f "${fail_file}"
     printf '%s' "${version}" > "${cache_file}"
     chmod 644 "${cache_file}"
 
     printf '%s' "${version}"
 }
 
-clear_version_cache() {
-    rm -f "${VERSIONS_CACHE_DIR}"/*.txt 2>/dev/null || true
+refresh_version_cache() {
+    local repository="$1"
+    local cache_file="${VERSIONS_CACHE_DIR}/${repository//\//_}.txt"
+
+    rm -f "${cache_file}" "${cache_file}.fail" 2>/dev/null || true
 }
 
 write_versions_file() {
@@ -249,16 +368,16 @@ write_versions_file() {
 {
   "updated_at": "$(date -Is)",
   "zigbee2mqtt": {
-    "installed": "${zigbee_installed}",
-    "latest": "${zigbee_latest}"
+    "installed": "$(json_escape "${zigbee_installed}")",
+    "latest": "$(json_escape "${zigbee_latest}")"
   },
   "node-red": {
-    "installed": "${node_red_installed}",
-    "latest": "${node_red_latest}"
+    "installed": "$(json_escape "${node_red_installed}")",
+    "latest": "$(json_escape "${node_red_latest}")"
   },
   "home-assistant": {
-    "installed": "${home_assistant_installed}",
-    "latest": "${home_assistant_latest}"
+    "installed": "$(json_escape "${home_assistant_installed}")",
+    "latest": "$(json_escape "${home_assistant_latest}")"
   }
 }
 EOF
@@ -324,7 +443,7 @@ update_container() {
     local container="$1"
 
     local compose_service compose_project compose_files compose_directory
-    local image_ref before after output rc f
+    local image_ref before after output rc f first_compose_file
     local -a compose_args=()
     local -a files=()
 
@@ -339,6 +458,15 @@ update_container() {
 
     # The label can hold several compose files, separated by commas
     IFS=',' read -ra files <<< "${compose_files}"
+
+    first_compose_file="$(resolve_host_path "${files[0]}")"
+
+    if [[ ! -f "${first_compose_file}" ]]; then
+        log "Compose file not found on host: ${first_compose_file}"
+        log "Update skipped (for Portainer stacks, update from the Portainer UI instead)"
+        return
+    fi
+
     for f in "${files[@]}"; do
         f="$(resolve_host_path "${f}")"
 
@@ -353,7 +481,7 @@ update_container() {
 
     # Use the directory of the first resolved compose file, so relative
     # paths such as stack.env or .env resolve correctly.
-    compose_directory="$(dirname "${compose_args[1]}")"
+    compose_directory="$(dirname "${first_compose_file}")"
     compose_args+=(--project-directory "${compose_directory}")
 
     image_ref="$(docker inspect "${container}" --format '{{.Config.Image}}')"
@@ -361,8 +489,9 @@ update_container() {
 
     log "Updating ${container} (image: ${image_ref})"
 
-    output="$(docker compose -p "${compose_project}" "${compose_args[@]}" \
-        pull "${compose_service}" 2>&1)"
+    output="$(timeout "${COMPOSE_TIMEOUT_SECONDS}" \
+        docker compose -p "${compose_project}" "${compose_args[@]}" \
+        pull "${compose_service}" 2>&1 9>&-)"
     rc=$?
     log_block "pull" "${output}"
 
@@ -371,14 +500,19 @@ update_container() {
         return
     fi
 
-    output="$(docker compose -p "${compose_project}" "${compose_args[@]}" \
-        up -d "${compose_service}" 2>&1)"
+    output="$(timeout "${COMPOSE_TIMEOUT_SECONDS}" \
+        docker compose -p "${compose_project}" "${compose_args[@]}" \
+        up -d "${compose_service}" 2>&1 9>&-)"
     rc=$?
     log_block "up" "${output}"
 
     if (( rc != 0 )); then
         log "Failed to recreate ${compose_service} (exit ${rc})"
         return
+    fi
+
+    if ! docker_container_running "${container}"; then
+        log "WARNING: ${container} is not running after the update"
     fi
 
     # The container ID changes on recreate, so look it up again by name
@@ -391,7 +525,19 @@ update_container() {
         docker image prune -f >/dev/null 2>&1 || true
     fi
 
-    clear_version_cache
+    case "${container}" in
+        "${ZIGBEE_CONTAINER}")
+            refresh_version_cache "Koenkk/zigbee2mqtt"
+            ;;
+
+        "${NODE_RED_CONTAINER}")
+            refresh_version_cache "node-red/node-red"
+            ;;
+
+        "${HOME_ASSISTANT_CONTAINER}")
+            refresh_version_cache "home-assistant/core"
+            ;;
+    esac
 }
 
 # ============================================================
@@ -421,22 +567,22 @@ run_service_action() {
     case "${action}" in
         Start)
             log "Starting ${container}"
-            docker start "${container}" || log "Failed to start ${container}"
+            docker_logged "start" start "${container}" || log "Failed to start ${container}"
             ;;
 
         Stop)
             if [[ "${service}" == "Zigbee2MQTT" ]]; then
                 log "Killing ${container}"
-                docker kill "${container}" || log "Failed to kill ${container}"
+                docker_logged "kill" kill "${container}" || log "Failed to kill ${container}"
             else
                 log "Stopping ${container}"
-                docker stop "${container}" || log "Failed to stop ${container}"
+                docker_logged "stop" stop "${container}" || log "Failed to stop ${container}"
             fi
             ;;
 
         Restart)
             log "Restarting ${container}"
-            docker restart "${container}" || log "Failed to restart ${container}"
+            docker_logged "restart" restart "${container}" || log "Failed to restart ${container}"
             ;;
 
         Update)
@@ -456,11 +602,9 @@ run_service_action() {
 # ============================================================
 
 add_mosquitto_user() {
-    local command_file="$1"
-    local username password
-
-    username="$(read_command_line "${command_file}" 1)"
-    password="$(read_command_line "${command_file}" 2)"
+    local username="${1:-}"
+    local password="${2:-}"
+    local output
 
     if [[ -z "${username}" || -z "${password}" ]]; then
         log "Mosquitto-AddUser: missing username or password"
@@ -479,29 +623,43 @@ add_mosquitto_user() {
 
     log "Replacing Mosquitto credentials with user: ${username}"
 
-    # -c recreates the password file: all other users are removed
-    if ! docker exec "${MOSQUITTO_CONTAINER}" \
-        mosquitto_passwd -b -c \
-        "${MOSQUITTO_PASSWORD_FILE}" \
-        "${username}" \
-        "${password}"; then
+    # "mosquitto_passwd -c" refuses to write to a file that already exists
+    # ("File exists"). So the hash file is generated at a fresh temporary path
+    # and then copied over the real file with "cat >", which keeps the inode.
+    # -c means all previous users are replaced by this single user.
+    # Values are passed as positional parameters ($1..$4), never interpolated
+    # into the shell command, so there is no quoting or injection problem.
+    if ! output="$(docker_run exec -u 0:0 "${MOSQUITTO_CONTAINER}" sh -c '
+        set -e
+        tmp="$(mktemp -u /tmp/passwd.XXXXXX)"
+        trap "rm -f \"$tmp\"" EXIT
+        mosquitto_passwd -b -c "$tmp" "$1" "$2" >/dev/null
+        cat "$tmp" > "$3"
+        chown "$4" "$3"
+        chmod 600 "$3"
+    ' _ "${username}" "${password}" \
+        "${MOSQUITTO_PASSWORD_FILE}" "${MOSQUITTO_UID_GID}" 2>&1)"; then
+        log_block "mosquitto_passwd" "${output}"
         log "Failed to update Mosquitto password file"
         return
     fi
 
-    if ! docker restart "${MOSQUITTO_CONTAINER}"; then
-        log "Failed to restart Mosquitto"
-        return
-    fi
-
+    # The password file is now changed, so record the credentials right away,
+    # even if the restart below fails.
     printf 'username=%s\npassword=%s\n' \
         "${username}" \
         "${password}" \
         > "${CREDENTIALS_FILE}.tmp"
 
     chmod "${CREDENTIALS_MODE}" "${CREDENTIALS_FILE}.tmp"
-    chown "${CREDENTIALS_OWNER}" "${CREDENTIALS_FILE}.tmp" || true
+    chown "${CREDENTIALS_OWNER}" "${CREDENTIALS_FILE}.tmp" \
+        || log "WARNING: could not chown credentials file to ${CREDENTIALS_OWNER}"
     mv "${CREDENTIALS_FILE}.tmp" "${CREDENTIALS_FILE}"
+
+    if ! docker_logged "restart" restart "${MOSQUITTO_CONTAINER}"; then
+        log "Failed to restart Mosquitto (password file was updated, restart it manually)"
+        return
+    fi
 
     log "Mosquitto credentials updated"
 }
@@ -511,11 +669,9 @@ add_mosquitto_user() {
 # ============================================================
 
 update_node_red_credentials() {
-    local command_file="$1"
-    local username password content temporary
-
-    username="$(read_command_line "${command_file}" 1)"
-    password="$(read_command_line "${command_file}" 2)"
+    local username="${1:-}"
+    local password="${2:-}"
+    local content temporary
 
     if [[ -z "${username}" || -z "${password}" ]]; then
         log "Node-RED-SetCredentials: missing username or password"
@@ -540,7 +696,7 @@ update_node_red_credentials() {
     # The whole file is generated inside the container. Username and password
     # go through stdin (not argv), and JSON.stringify handles all quoting.
     content="$(printf '%s\n%s\n' "${username}" "${password}" \
-        | docker exec -i "${NODE_RED_CONTAINER}" node -e '
+        | docker_run exec -i "${NODE_RED_CONTAINER}" node -e '
             const lines = require("fs").readFileSync(0, "utf8").split("\n");
             let bcrypt;
             try { bcrypt = require("bcryptjs"); } catch (e) { bcrypt = require("bcrypt"); }
@@ -563,11 +719,16 @@ update_node_red_credentials() {
     temporary="${NODE_RED_AUTH_FILE}.tmp"
     printf '%s\n' "${content}" > "${temporary}"
 
-    write_in_place "${temporary}" "${NODE_RED_AUTH_FILE}"
+    if ! write_in_place "${temporary}" "${NODE_RED_AUTH_FILE}"; then
+        rm -f "${temporary}"
+        log "Failed to write ${NODE_RED_AUTH_FILE}"
+        return
+    fi
+
     rm -f "${temporary}"
     chmod 644 "${NODE_RED_AUTH_FILE}"
 
-    if ! docker restart "${NODE_RED_CONTAINER}"; then
+    if ! docker_logged "restart" restart "${NODE_RED_CONTAINER}"; then
         log "Failed to restart Node-RED"
         return
     fi
@@ -580,10 +741,8 @@ update_node_red_credentials() {
 # ============================================================
 
 update_zigbee_token() {
-    local command_file="$1"
-    local token temporary
-
-    token="$(read_command_line "${command_file}" 1)"
+    local token="${1:-}"
+    local temporary
 
     if [[ -z "${token}" ]]; then
         log "Zigbee2MQTT-SetToken: missing token"
@@ -609,6 +768,8 @@ update_zigbee_token() {
 
     temporary="${ZIGBEE_CONFIG_FILE}.tmp"
 
+    # The token is validated above (no |, &, \ or quotes), so it is safe
+    # inside the sed replacement.
     if ! sed \
         "s|^\([[:space:]]*\)auth_token:.*|\1auth_token: \"${token}\"|" \
         "${ZIGBEE_CONFIG_FILE}" > "${temporary}"; then
@@ -617,16 +778,21 @@ update_zigbee_token() {
         return
     fi
 
-    if ! grep -q "auth_token: \"${token}\"" "${temporary}"; then
+    if ! grep -qF "auth_token: \"${token}\"" "${temporary}"; then
         log "No auth_token line found in ${ZIGBEE_CONFIG_FILE}, nothing changed"
         rm -f "${temporary}"
         return
     fi
 
-    write_in_place "${temporary}" "${ZIGBEE_CONFIG_FILE}"
+    if ! write_in_place "${temporary}" "${ZIGBEE_CONFIG_FILE}"; then
+        rm -f "${temporary}"
+        log "Failed to write ${ZIGBEE_CONFIG_FILE}"
+        return
+    fi
+
     rm -f "${temporary}"
 
-    if ! docker restart "${ZIGBEE_CONTAINER}"; then
+    if ! docker_logged "restart" restart "${ZIGBEE_CONTAINER}"; then
         log "Failed to restart Zigbee2MQTT"
         return
     fi
@@ -639,11 +805,9 @@ update_zigbee_token() {
 # ============================================================
 
 update_home_assistant_password() {
-    local command_file="$1"
-    local username password output
-
-    username="$(read_command_line "${command_file}" 1)"
-    password="$(read_command_line "${command_file}" 2)"
+    local username="${1:-}"
+    local password="${2:-}"
+    local output
 
     if [[ -z "${username}" || -z "${password}" ]]; then
         log "HomeAssistant-SetPassword: missing username or password"
@@ -660,15 +824,14 @@ update_home_assistant_password() {
         return
     fi
 
-    if [[ "$(docker inspect "${HOME_ASSISTANT_CONTAINER}" \
-        --format '{{.State.Running}}' 2>/dev/null)" != "true" ]]; then
+    if ! docker_container_running "${HOME_ASSISTANT_CONTAINER}"; then
         log "Home Assistant is not running, password change skipped"
         return
     fi
 
     log "Changing Home Assistant password for user: ${username}"
 
-    output="$(docker exec "${HOME_ASSISTANT_CONTAINER}" \
+    output="$(docker_run exec "${HOME_ASSISTANT_CONTAINER}" \
         hass --script auth --config /config \
         change_password "${username}" "${password}" 2>&1)"
 
@@ -681,7 +844,7 @@ update_home_assistant_password() {
         return
     fi
 
-    if ! docker restart "${HOME_ASSISTANT_CONTAINER}"; then
+    if ! docker_logged "restart" restart "${HOME_ASSISTANT_CONTAINER}"; then
         log "Failed to restart Home Assistant"
         return
     fi
@@ -697,18 +860,57 @@ update_home_assistant_password() {
 
 process_command_file() {
     local command_file="$1"
-    local command_name
+    local command_name="${command_file##*/}"
+    local safe_name="${command_name//[^[:print:]]/?}"
+    local claimed_file="${command_file}.processing.$$"
+    local service_regex='^(Zigbee2MQTT|Node-RED|Home Assistant|HomeAssistant)-(Start|Stop|Restart|Update)$'
+    local size service action
+    local -a fields=()
 
-    [[ -f "${command_file}" ]] || return
+    [[ -f "${command_file}" || -L "${command_file}" ]] || return
 
-    command_name="$(basename "${command_file}")"
+    # Atomically claim the command before reading or acting on it.
+    # This prevents a newly published command with the same name from
+    # being read partially or deleted before it can be processed.
+    if ! mv "${command_file}" "${claimed_file}" 2>/dev/null; then
+        return
+    fi
 
-    log "Processing command: ${command_name}"
+    log "Processing command: ${safe_name}"
+
+    # A symlink would make "read" follow it to an arbitrary file
+    if [[ -L "${claimed_file}" ]]; then
+        log "Ignoring symlink command: ${safe_name}"
+        rm -f "${claimed_file}"
+        return
+    fi
+
+    size="$(stat -c %s "${claimed_file}" 2>/dev/null || echo 0)"
+
+    if (( size > MAX_COMMAND_BYTES )); then
+        log "Ignoring oversized command (${size} bytes): ${safe_name}"
+        rm -f "${claimed_file}"
+        return
+    fi
+
+    # Read the content once and delete the file right away, so passwords
+    # do not stay on disk while slow actions (restarts, updates) run.
+    read_command_fields "${claimed_file}" fields
+    rm -f "${claimed_file}"
+
+    if [[ "${command_name}" =~ ${service_regex} ]]; then
+        service="${BASH_REMATCH[1]}"
+        action="${BASH_REMATCH[2]}"
+
+        [[ "${service}" == "HomeAssistant" ]] && service="Home Assistant"
+
+        run_service_action "${service}" "${action}"
+        return
+    fi
 
     case "${command_name}" in
         System-Reboot)
             log "Reboot requested"
-            rm -f "${command_file}"
             sync
             sleep 2
             reboot
@@ -716,67 +918,43 @@ process_command_file() {
 
         System-Update)
             log "System update requested (not implemented)"
-            rm -f "${command_file}"
-            ;;
-
-        Zigbee2MQTT-Start|Zigbee2MQTT-Stop|Zigbee2MQTT-Restart|Zigbee2MQTT-Update)
-            rm -f "${command_file}"
-            run_service_action "Zigbee2MQTT" "${command_name#Zigbee2MQTT-}"
-            ;;
-
-        Node-RED-Start|Node-RED-Stop|Node-RED-Restart|Node-RED-Update)
-            rm -f "${command_file}"
-            run_service_action "Node-RED" "${command_name#Node-RED-}"
-            ;;
-
-        Home\ Assistant-Start|Home\ Assistant-Stop|Home\ Assistant-Restart|Home\ Assistant-Update)
-            rm -f "${command_file}"
-            run_service_action "Home Assistant" "${command_name#Home Assistant-}"
             ;;
 
         Mosquitto-AddUser)
-            add_mosquitto_user "${command_file}"
-            rm -f "${command_file}"
+            add_mosquitto_user "${fields[0]:-}" "${fields[1]:-}"
             ;;
 
         Node-RED-SetCredentials)
-            update_node_red_credentials "${command_file}"
-            rm -f "${command_file}"
+            update_node_red_credentials "${fields[0]:-}" "${fields[1]:-}"
             ;;
 
         Zigbee2MQTT-SetToken)
-            update_zigbee_token "${command_file}"
-            rm -f "${command_file}"
+            update_zigbee_token "${fields[0]:-}"
             ;;
 
         HomeAssistant-SetPassword)
-            update_home_assistant_password "${command_file}"
-            rm -f "${command_file}"
+            update_home_assistant_password "${fields[0]:-}" "${fields[1]:-}"
             ;;
 
         *)
-            log "Ignoring unknown command: ${command_name}"
-            rm -f "${command_file}"
+            log "Ignoring unknown command: ${safe_name}"
             ;;
     esac
 }
 
 process_commands() {
-    local command_file
-
-    shopt -s nullglob
+    local command_file name
 
     for command_file in "${COMMANDS_DIR}"/*; do
-        [[ -f "${command_file}" ]] || continue
+        name="${command_file##*/}"
 
         # Dotfiles are ignored, so writers can create ".name.tmp"
         # and mv it into place once it is complete.
-        [[ "$(basename "${command_file}")" == .* ]] && continue
+        [[ "${name}" == .* ]] && continue
+        [[ "${name}" == *.processing.* ]] && continue
 
         process_command_file "${command_file}"
     done
-
-    shopt -u nullglob
 }
 
 # ============================================================
@@ -790,6 +968,7 @@ process_commands
 write_versions_file
 
 LAST_VERSION_UPDATE="$(date +%s)"
+LAST_HOST_IP_UPDATE="${LAST_VERSION_UPDATE}"
 
 while true; do
     process_commands
@@ -799,7 +978,13 @@ while true; do
     if (( now - LAST_VERSION_UPDATE >= VERSION_REFRESH_SECONDS )); then
         write_versions_file
         LAST_VERSION_UPDATE="${now}"
+        LAST_HOST_IP_UPDATE="${now}"
+    elif (( now - LAST_HOST_IP_UPDATE >= HOST_IP_REFRESH_SECONDS )); then
+        write_host_ip_file
+        LAST_HOST_IP_UPDATE="${now}"
     fi
 
-    sleep "${CHECK_INTERVAL_SECONDS}"
+    # Sleep in the background and wait, so SIGTERM is handled immediately
+    sleep "${CHECK_INTERVAL_SECONDS}" 9>&- &
+    wait $!
 done
