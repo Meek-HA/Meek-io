@@ -36,10 +36,17 @@ MOSQUITTO_PASSWORD_FILE="/mosquitto/config/passwd"
 # UID/GID used by the Mosquitto process in its container.
 MOSQUITTO_UID_GID="1883:1883"
 
-NODE_RED_SETTINGS_FILE="/meek-io/node-red/settings.js"
-NODE_RED_AUTH_FILE="/meek-io/node-red/admin-auth.js"
+# Node-RED data folder on the host (mounted at /data in the container).
+# It must be owned by the node-red user (uid/gid 1000) or Node-RED cannot
+# write its settings.js on first start.
+NODE_RED_DATA_DIR="/meek-io/node-red"
+NODE_RED_UID_GID="1000:1000"
 
-ZIGBEE_CONFIG_FILE="/meek-io/zigbee2mqtt/configuration.yaml"
+# Self update (System > Update)
+SELF_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+INDEX_PHP_PATH="/meek-io/nginx/config/www/admin/index.php"
+GITHUB_RAW_BASE="https://raw.githubusercontent.com/Meek-HA/Meek-io/master/2026"
+SERVICE_NAME="meek-action-handler"
 
 CHECK_INTERVAL_SECONDS="4"
 VERSION_REFRESH_SECONDS="3600"
@@ -93,10 +100,6 @@ cleanup() {
         "${VERSIONS_FILE}.tmp" \
         "${HOST_IP_FILE}.tmp" \
         "${CREDENTIALS_FILE}.tmp" \
-        "${NODE_RED_AUTH_FILE}.tmp" \
-        "${NODE_RED_AUTH_FILE}.bak" \
-        "${ZIGBEE_CONFIG_FILE}.tmp" \
-        "${ZIGBEE_CONFIG_FILE}.bak" \
         2>/dev/null || true
 }
 
@@ -114,6 +117,12 @@ chmod "${CREDENTIALS_MODE}" "${CREDENTIALS_FILE}"
 chown "${CREDENTIALS_OWNER}" "${CREDENTIALS_FILE}" \
     || log "WARNING: could not chown ${CREDENTIALS_FILE} to ${CREDENTIALS_OWNER}"
 
+# Make sure Node-RED can write to its data folder.
+if [[ -d "${NODE_RED_DATA_DIR}" ]]; then
+    chown -R "${NODE_RED_UID_GID}" "${NODE_RED_DATA_DIR}" 2>/dev/null \
+        || log "WARNING: could not chown ${NODE_RED_DATA_DIR} to ${NODE_RED_UID_GID}"
+fi
+
 # Claimed command files left behind by a crash may hold passwords: remove them.
 rm -f "${COMMANDS_DIR}"/*.processing.*
 
@@ -123,10 +132,6 @@ rm -f "${COMMANDS_DIR}"/*.processing.*
 
 valid_username() {
     [[ "$1" =~ ^[A-Za-z0-9._@-]{1,64}$ ]]
-}
-
-valid_token() {
-    [[ "$1" =~ ^[A-Za-z0-9._-]{1,128}$ ]]
 }
 
 # Read every line of a command file into an indexed array.
@@ -152,26 +157,6 @@ json_escape() {
     s="${s//[$'\001'-$'\037']/}"
 
     printf '%s' "${s}"
-}
-
-# Overwrite a file's contents while keeping its inode, so single-file
-# bind mounts inside containers keep seeing the update.
-# A backup is kept during the write and restored if the write fails.
-write_in_place() {
-    local source="$1"
-    local target="$2"
-    local backup="${target}.bak"
-
-    cp -p "${target}" "${backup}" 2>/dev/null || true
-
-    if ! cat "${source}" > "${target}"; then
-        log "Write to ${target} failed, restoring backup"
-        [[ -f "${backup}" ]] && cat "${backup}" > "${target}"
-        rm -f "${backup}"
-        return 1
-    fi
-
-    rm -f "${backup}"
 }
 
 # ============================================================
@@ -500,6 +485,14 @@ update_container() {
         return
     fi
 
+    # Make sure Docker never creates the Node-RED data folder as root
+    # and that the node-red user can write to it.
+    if [[ "${container}" == "${NODE_RED_CONTAINER}" ]]; then
+        mkdir -p "${NODE_RED_DATA_DIR}" \
+            && chown -R "${NODE_RED_UID_GID}" "${NODE_RED_DATA_DIR}" 2>/dev/null \
+            || log "WARNING: could not prepare ${NODE_RED_DATA_DIR}"
+    fi
+
     output="$(timeout "${COMPOSE_TIMEOUT_SECONDS}" \
         docker compose -p "${compose_project}" "${compose_args[@]}" \
         up -d "${compose_service}" 2>&1 9>&-)"
@@ -665,142 +658,6 @@ add_mosquitto_user() {
 }
 
 # ============================================================
-# Node-RED login management
-# ============================================================
-
-update_node_red_credentials() {
-    local username="${1:-}"
-    local password="${2:-}"
-    local content temporary
-
-    if [[ -z "${username}" || -z "${password}" ]]; then
-        log "Node-RED-SetCredentials: missing username or password"
-        return
-    fi
-
-    if ! valid_username "${username}"; then
-        log "Node-RED-SetCredentials: invalid username (allowed: A-Z a-z 0-9 . _ @ -)"
-        return
-    fi
-
-    if [[ ! -f "${NODE_RED_SETTINGS_FILE}" ]]; then
-        log "Node-RED settings file not found: ${NODE_RED_SETTINGS_FILE}"
-        return
-    fi
-
-    if ! docker_container_exists "${NODE_RED_CONTAINER}"; then
-        log "Node-RED container not found: ${NODE_RED_CONTAINER}"
-        return
-    fi
-
-    # The whole file is generated inside the container. Username and password
-    # go through stdin (not argv), and JSON.stringify handles all quoting.
-    content="$(printf '%s\n%s\n' "${username}" "${password}" \
-        | docker_run exec -i "${NODE_RED_CONTAINER}" node -e '
-            const lines = require("fs").readFileSync(0, "utf8").split("\n");
-            let bcrypt;
-            try { bcrypt = require("bcryptjs"); } catch (e) { bcrypt = require("bcrypt"); }
-            const auth = {
-                type: "credentials",
-                users: [{
-                    username: lines[0],
-                    password: bcrypt.hashSync(lines[1], 8),
-                    permissions: "*"
-                }]
-            };
-            console.log("module.exports = " + JSON.stringify(auth, null, 4) + ";");
-        ' 2>/dev/null)"
-
-    if [[ -z "${content}" || "${content}" != module.exports* ]]; then
-        log "Failed to generate Node-RED credentials file"
-        return
-    fi
-
-    temporary="${NODE_RED_AUTH_FILE}.tmp"
-    printf '%s\n' "${content}" > "${temporary}"
-
-    if ! write_in_place "${temporary}" "${NODE_RED_AUTH_FILE}"; then
-        rm -f "${temporary}"
-        log "Failed to write ${NODE_RED_AUTH_FILE}"
-        return
-    fi
-
-    rm -f "${temporary}"
-    chmod 644 "${NODE_RED_AUTH_FILE}"
-
-    if ! docker_logged "restart" restart "${NODE_RED_CONTAINER}"; then
-        log "Failed to restart Node-RED"
-        return
-    fi
-
-    log "Node-RED login updated for user: ${username}"
-}
-
-# ============================================================
-# Zigbee2MQTT frontend token management
-# ============================================================
-
-update_zigbee_token() {
-    local token="${1:-}"
-    local temporary
-
-    if [[ -z "${token}" ]]; then
-        log "Zigbee2MQTT-SetToken: missing token"
-        return
-    fi
-
-    if ! valid_token "${token}"; then
-        log "Zigbee2MQTT-SetToken: invalid token (allowed: A-Z a-z 0-9 . _ -)"
-        return
-    fi
-
-    if [[ ! -f "${ZIGBEE_CONFIG_FILE}" ]]; then
-        log "Zigbee2MQTT configuration file not found: ${ZIGBEE_CONFIG_FILE}"
-        return
-    fi
-
-    if ! docker_container_exists "${ZIGBEE_CONTAINER}"; then
-        log "Zigbee2MQTT container not found: ${ZIGBEE_CONTAINER}"
-        return
-    fi
-
-    log "Updating Zigbee2MQTT frontend token"
-
-    temporary="${ZIGBEE_CONFIG_FILE}.tmp"
-
-    # The token is validated above (no |, &, \ or quotes), so it is safe
-    # inside the sed replacement.
-    if ! sed \
-        "s|^\([[:space:]]*\)auth_token:.*|\1auth_token: \"${token}\"|" \
-        "${ZIGBEE_CONFIG_FILE}" > "${temporary}"; then
-        log "Failed to generate Zigbee2MQTT configuration"
-        rm -f "${temporary}"
-        return
-    fi
-
-    if ! grep -qF "auth_token: \"${token}\"" "${temporary}"; then
-        log "No auth_token line found in ${ZIGBEE_CONFIG_FILE}, nothing changed"
-        rm -f "${temporary}"
-        return
-    fi
-
-    if ! write_in_place "${temporary}" "${ZIGBEE_CONFIG_FILE}"; then
-        rm -f "${temporary}"
-        log "Failed to write ${ZIGBEE_CONFIG_FILE}"
-        return
-    fi
-
-    rm -f "${temporary}"
-
-    if ! docker_logged "restart" restart "${ZIGBEE_CONTAINER}"; then
-        log "Failed to restart Zigbee2MQTT"
-        return
-    fi
-
-    log "Zigbee2MQTT frontend token updated"
-}
-
-# ============================================================
 # Home Assistant password management
 # ============================================================
 
@@ -852,6 +709,111 @@ update_home_assistant_password() {
     write_versions_file
 
     log "Home Assistant password updated for user: ${username}"
+}
+
+# ============================================================
+# Self update from GitHub
+# ============================================================
+
+# download_and_install <url> <target> <php|sh>
+# Returns 0 = replaced, 2 = already identical, 1 = failed.
+# The new file is validated first and moved into place atomically
+# (new inode), so a running copy of this script is never overwritten
+# while Bash is still reading it.
+download_and_install() {
+    local url="$1"
+    local target="$2"
+    local kind="$3"
+    local temporary="${target}.new.$$"
+
+    if ! curl -fsSL --max-time 30 \
+        -H 'User-Agent: Meek-io-Action-Handler' \
+        "${url}" -o "${temporary}" 9>&-; then
+        log "Download failed: ${url}"
+        rm -f "${temporary}"
+        return 1
+    fi
+
+    if (( $(stat -c %s "${temporary}" 2>/dev/null || echo 0) < 500 )); then
+        log "Downloaded file is empty or too small: ${url}"
+        rm -f "${temporary}"
+        return 1
+    fi
+
+    case "${kind}" in
+        php)
+            if [[ "$(head -c 5 "${temporary}")" != "<?php" ]]; then
+                log "Downloaded file is not a PHP file: ${url}"
+                rm -f "${temporary}"
+                return 1
+            fi
+
+            if command -v php >/dev/null 2>&1 && ! php -l "${temporary}" >/dev/null 2>&1; then
+                log "PHP syntax check failed: ${url}"
+                rm -f "${temporary}"
+                return 1
+            fi
+            ;;
+
+        sh)
+            if [[ "$(head -n 1 "${temporary}")" != "#!/usr/bin/env bash" ]] \
+                || ! bash -n "${temporary}" 2>/dev/null; then
+                log "Shell script check failed: ${url}"
+                rm -f "${temporary}"
+                return 1
+            fi
+            ;;
+    esac
+
+    if [[ -f "${target}" ]]; then
+        if cmp -s "${temporary}" "${target}"; then
+            rm -f "${temporary}"
+            return 2
+        fi
+
+        # umask 077 made the temp file private: copy owner and mode from
+        # the old file so PHP (user abc) can still read the new one.
+        chown --reference="${target}" "${temporary}" 2>/dev/null || true
+        chmod --reference="${target}" "${temporary}" 2>/dev/null || true
+    else
+        chmod 644 "${temporary}"
+    fi
+
+    if ! mv -f "${temporary}" "${target}"; then
+        log "Could not replace ${target}"
+        rm -f "${temporary}"
+        return 1
+    fi
+
+    return 0
+}
+
+update_meek_files() {
+    local rc restart_needed=0
+
+    log "System update: fetching latest files from GitHub"
+
+    download_and_install "${GITHUB_RAW_BASE}/index.php" "${INDEX_PHP_PATH}" php
+    rc=$?
+    case "${rc}" in
+        0) log "index.php updated" ;;
+        2) log "index.php is already up to date" ;;
+        *) log "index.php update failed" ;;
+    esac
+
+    download_and_install "${GITHUB_RAW_BASE}/meek-action-handler.sh" "${SELF_PATH}" sh
+    rc=$?
+    case "${rc}" in
+        0) log "Action handler updated"; restart_needed=1 ;;
+        2) log "Action handler is already up to date" ;;
+        *) log "Action handler update failed" ;;
+    esac
+
+    if (( restart_needed )); then
+        log "Restarting ${SERVICE_NAME} to load the new version"
+        systemctl restart --no-block "${SERVICE_NAME}" \
+            || log "Could not restart ${SERVICE_NAME}, restart it manually"
+    fi
 }
 
 # ============================================================
@@ -917,19 +879,11 @@ process_command_file() {
             ;;
 
         System-Update)
-            log "System update requested (not implemented)"
+            update_meek_files
             ;;
 
         Mosquitto-AddUser)
             add_mosquitto_user "${fields[0]:-}" "${fields[1]:-}"
-            ;;
-
-        Node-RED-SetCredentials)
-            update_node_red_credentials "${fields[0]:-}" "${fields[1]:-}"
-            ;;
-
-        Zigbee2MQTT-SetToken)
-            update_zigbee_token "${fields[0]:-}"
             ;;
 
         HomeAssistant-SetPassword)
