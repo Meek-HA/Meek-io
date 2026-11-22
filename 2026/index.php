@@ -25,7 +25,9 @@ $homeAssistantContainerName = 'homeassistant';
 $mosquittoCredentialsFile =
     '/config/www/actions/settings/current-credentials.txt';
 
-$systemUpdateEnabled = false;
+// System > Update downloads the latest index.php and
+// meek-action-handler.sh from GitHub (done by the handler).
+$systemUpdateEnabled = true;
 
 // If versions.json is older than this, the handler is probably not running.
 $handlerStaleSeconds = 7200;
@@ -186,77 +188,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             } else {
                 $message = 'Failed to create Mosquitto request. '
                     . 'Check the commands directory and permissions.';
-                $messageType = 'error';
-            }
-        }
-
-    } elseif (
-        $category === 'Node-RED' &&
-        $button === 'SetCredentials'
-    ) {
-        $username = trim(postValue('username'));
-        $password = postValue('password');
-        $confirmation = postValue('confirm_password');
-
-        if (
-            $username === '' ||
-            $password === '' ||
-            $confirmation === ''
-        ) {
-            $message = 'Please fill in all Node-RED login fields.';
-            $messageType = 'error';
-        } elseif ($password !== $confirmation) {
-            $message = 'The Node-RED passwords do not match.';
-            $messageType = 'error';
-        } elseif (
-            !preg_match('/^[A-Za-z0-9_.-]{1,64}$/', $username) ||
-            preg_match('/[\r\n\x00]/', $password)
-        ) {
-            $message = 'Unsupported Node-RED username or password.';
-            $messageType = 'error';
-        } else {
-            $content = $username . "\n" . $password . "\n";
-
-            if (publishCommand(
-                $actionsDir,
-                'Node-RED-SetCredentials',
-                $content
-            )) {
-                $message = 'Node-RED login change queued.';
-            } else {
-                $message = 'Failed to queue Node-RED login change.';
-                $messageType = 'error';
-            }
-        }
-
-    } elseif (
-        $category === 'Zigbee2MQTT' &&
-        $button === 'SetToken'
-    ) {
-        $token = trim(postValue('token'));
-        $confirmation = trim(postValue('confirm_token'));
-
-        if ($token === '' || $confirmation === '') {
-            $message = 'Please fill in both Zigbee2MQTT token fields.';
-            $messageType = 'error';
-        } elseif ($token !== $confirmation) {
-            $message = 'The Zigbee2MQTT tokens do not match.';
-            $messageType = 'error';
-        } elseif (
-            !preg_match('/^[A-Za-z0-9_.-]{16,128}$/', $token)
-        ) {
-            $message = 'Use 16–128 letters, numbers, dots, underscores, '
-                . 'or hyphens.';
-            $messageType = 'error';
-        } else {
-            if (publishCommand(
-                $actionsDir,
-                'Zigbee2MQTT-SetToken',
-                $token . "\n"
-            )) {
-                $message = 'Zigbee2MQTT token change queued.';
-            } else {
-                $message = 'Failed to queue Zigbee2MQTT token change.';
                 $messageType = 'error';
             }
         }
@@ -809,6 +740,8 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                 <?php if ($category === 'System'): ?>
                     <p class="info">
                         Manage the host system running Docker and all stacks.
+                        Update downloads the latest admin page and action
+                        handler from GitHub.
                     </p>
                 <?php elseif ($category === 'Zigbee2MQTT'): ?>
                     <p class="info">
@@ -856,6 +789,10 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                         if ($category === 'System' && $action === 'Reboot') {
                             $confirmText = 'Reboot the host system? '
                                 . 'All stacks on this host will be interrupted.';
+                        } elseif ($category === 'System' && $action === 'Update') {
+                            $confirmText = 'Download the latest admin page and '
+                                . 'action handler from GitHub? The handler '
+                                . 'restarts itself if it changed.';
                         } elseif ($action === 'Update' || $action === 'Stop') {
                             $confirmText = $action . ' ' . $category . '?';
                         }
@@ -885,64 +822,8 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                         </form>
                     <?php endforeach; ?>
                 </div>
-
-                <?php if ($category === 'System' && !$systemUpdateEnabled): ?>
-                    <p class="note">
-                        Host OS updates are disabled until the host update
-                        command is configured.
-                    </p>
-                <?php endif; ?>
             </section>
         <?php endforeach; ?>
-
-        <section class="card">
-            <h2>Node-RED login</h2>
-
-            <p class="info">
-                Change the Node-RED editor username and password.
-                Node-RED will restart after the change.
-            </p>
-
-            <form method="post" action="/admin/">
-                <input type="hidden" name="csrf"
-                    value="<?= escape($_SESSION['csrf']) ?>">
-                <input type="hidden" name="category" value="Node-RED">
-                <input type="hidden" name="button" value="SetCredentials">
-
-                <label for="nodered_username">Username</label>
-                <input
-                    id="nodered_username"
-                    name="username"
-                    type="text"
-                    autocomplete="username"
-                    required
-                >
-
-                <label for="nodered_password">Password</label>
-                <input
-                    id="nodered_password"
-                    name="password"
-                    type="password"
-                    autocomplete="new-password"
-                    required
-                >
-
-                <label for="nodered_confirm">Confirm password</label>
-                <input
-                    id="nodered_confirm"
-                    name="confirm_password"
-                    type="password"
-                    autocomplete="new-password"
-                    required
-                >
-
-                <div class="submit-row">
-                    <button type="submit" <?= !$commandsWritable ? 'disabled' : '' ?>>
-                        Change Node-RED login
-                    </button>
-                </div>
-            </form>
-        </section>
 
         <section class="card">
             <h2>Home Assistant login</h2>
@@ -992,47 +873,6 @@ $commandsWritable = is_dir($actionsDir) && is_writable($actionsDir);
                 <div class="submit-row">
                     <button type="submit" <?= !$commandsWritable ? 'disabled' : '' ?>>
                         Change Home Assistant password
-                    </button>
-                </div>
-            </form>
-        </section>
-
-        <section class="card">
-            <h2>Zigbee2MQTT access</h2>
-
-            <p class="info">
-                Change the Zigbee2MQTT frontend access token.
-                Zigbee2MQTT uses a token rather than a username and password.
-                Zigbee2MQTT will restart after the change.
-            </p>
-
-            <form method="post" action="/admin/">
-                <input type="hidden" name="csrf"
-                    value="<?= escape($_SESSION['csrf']) ?>">
-                <input type="hidden" name="category" value="Zigbee2MQTT">
-                <input type="hidden" name="button" value="SetToken">
-
-                <label for="zigbee_token">Access token</label>
-                <input
-                    id="zigbee_token"
-                    name="token"
-                    type="text"
-                    autocomplete="off"
-                    required
-                >
-
-                <label for="zigbee_token_confirm">Confirm token</label>
-                <input
-                    id="zigbee_token_confirm"
-                    name="confirm_token"
-                    type="text"
-                    autocomplete="off"
-                    required
-                >
-
-                <div class="submit-row">
-                    <button type="submit" <?= !$commandsWritable ? 'disabled' : '' ?>>
-                        Change Zigbee2MQTT token
                     </button>
                 </div>
             </form>
